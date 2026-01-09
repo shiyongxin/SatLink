@@ -235,6 +235,9 @@ def api_calculate_link():
         satellites = db.list_satellite_positions()
         if not satellites:
             # Add default satellite if none exist
+            # Use system user ID (1) for default satellite
+            temp_user_id = db.current_user_id or 1
+            db.current_user_id = temp_user_id  # Temporarily set user ID
             db.add_satellite_position(
                 name="Default GEO Satellite",
                 sat_long=0.0,  # 0° longitude (prime meridian)
@@ -242,6 +245,7 @@ def api_calculate_link():
                 h_sat=35786,   # GEO altitude in km
                 is_shared=True
             )
+            db.current_user_id = None  # Reset user ID
             satellites = db.list_satellite_positions()
 
         for s in satellites:
