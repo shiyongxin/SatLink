@@ -3,6 +3,7 @@ import pandas as pd
 from scipy import constants as const
 from models import util
 import sys
+import os
 
 
 # retorna parâmetros tabelados referenciados as coordenadas da estação terrena
@@ -33,7 +34,9 @@ class GroundStation:
         # função que retorna o valor de R001 dadas as coordenadas da estação terrena (ref. ITU 837-7)
         # R001 - taxa de precipitação da chuva excedida em 0.01% do ano
 
-        R001_table = pd.read_csv('R001.csv', sep=';', index_col=0)  # linha=lat, coluna=long
+        # Get the directory containing this file and navigate to models for CSV files
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        R001_table = pd.read_csv(os.path.join(current_dir, 'models', 'R001.csv'), sep=';', index_col=0)  # linha=lat, coluna=long
 
         linhas_R001 = R001_table.index.to_numpy()
         colunas_R001 = R001_table.columns.to_numpy().astype('int32')
@@ -48,7 +51,7 @@ class GroundStation:
         # função que retorna o valor de h0 dadas as coordenadas da estação terrena (ref. ITU 839-4)
         # h0 - altura isotérmica sobre o nível do mar
 
-        h0_table = pd.read_csv('h0.csv', sep=';', index_col=0)  # linha=lat, coluna=long
+        h0_table = pd.read_csv(os.path.join(current_dir, 'models', 'h0.csv'), sep=';', index_col=0)  # linha=lat, coluna=long
 
         linhas_h0 = h0_table.index.to_numpy()
         colunas_h0 = h0_table.columns.to_numpy().astype('int32')
@@ -146,7 +149,9 @@ class Reception:
         elif self.t_sky is not None:
             return self.t_sky
         else:
-            path = 'models/ClearSkyTemp ITU 372.csv'
+            # Get the directory containing this file and navigate to models for CSV files
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            path = os.path.join(current_dir, 'models', 'ClearSkyTemp ITU 372.csv')
             # If file missing, fallback to zero brightness temperature and warn
             try:
                 if not os.path.exists(path):

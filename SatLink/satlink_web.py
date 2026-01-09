@@ -50,7 +50,9 @@ with grstat_exp:
 # Satellite variables
 st.subheader('Satellite')
 sat_exp = st.expander(label='', expanded=True)
-path = 'models/Modulation_dB.csv'
+# Get the directory containing this file and use relative path from there
+current_dir = os.path.dirname(os.path.abspath(__file__))
+path = os.path.join(current_dir, 'models', 'Modulation_dB.csv')
 mod_list = pd.read_csv(path, sep=';')['Modcod']  # to fill modulation combobox
 
 with sat_exp:

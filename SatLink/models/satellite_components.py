@@ -10,6 +10,7 @@ This module provides component classes that can be combined to create a complete
 import numpy as np
 import pandas as pd
 import sys
+import os
 
 
 class SatellitePosition:
@@ -31,6 +32,7 @@ class SatellitePosition:
         self.sat_long = sat_long  # satellite longitude in degrees
         self.sat_lat = sat_lat  # satellite latitude in degrees (for non-GEO)
         self.h_sat = h_sat  # satellite altitude in km
+        self.name = None  # satellite name (optional)
 
     def __repr__(self):
         return f"SatellitePosition(long={self.sat_long}°, lat={self.sat_lat}°, alt={self.h_sat}km)"
@@ -68,6 +70,7 @@ class Transponder:
         self.b_transp = b_transp  # transponder bandwidth in MHz
         self.back_off = back_off  # output back-off in dB
         self.contorno = contorno  # contour/shape factor in dB
+        self.name = None  # transponder name (optional)
 
     def __repr__(self):
         return f"Transponder(freq={self.freq}GHz, EIRP_max={self.eirp_max}dBW, BW={self.b_transp}MHz)"
@@ -101,6 +104,7 @@ class Carrier:
 
         self.roll_off = roll_off
         self.b_util = b_util  # utilized bandwidth in MHz
+        self.name = None  # carrier name (optional)
 
         # Calculated parameters
         self.symbol_rate = None
@@ -109,7 +113,8 @@ class Carrier:
 
     def _parse_modcod(self, modcod):
         """Parse MODCOD string to extract modulation and FEC"""
-        path = 'models/Modulation_dB.csv'
+        # Get the directory containing this file (models) and use relative path from there
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Modulation_dB.csv')
         try:
             data = pd.read_csv(path, sep=';')
             line = data.loc[(data.Modcod) == modcod]
@@ -144,7 +149,8 @@ class Carrier:
         if self.modulation == '' or self.fec == '':
             raise ValueError('Modulation and FEC must be defined to calculate bitrate')
 
-        path = 'models/Modulation_dB.csv'
+        # Get the directory containing this file (models) and use relative path from there
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Modulation_dB.csv')
         data = pd.read_csv(path, sep=';')
         line = data.loc[(data.Modulation == self.modulation) & (data.FEC == self.fec)]
         if line.empty:
@@ -160,7 +166,8 @@ class Carrier:
         if self.modulation == '' or self.fec == '':
             raise ValueError('Modulation and FEC must be defined to get SNR threshold')
 
-        path = 'models/Modulation_dB.csv'
+        # Get the directory containing this file (models) and use relative path from there
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Modulation_dB.csv')
         data = pd.read_csv(path, sep=';')
         line = data.loc[(data.Modulation == self.modulation) & (data.FEC == self.fec)]
         if line.empty:
@@ -214,7 +221,8 @@ def get_modulation_params(modcod):
     - inforate (bits/s/Hz) or None
     - c_over_n (dB) or None
     """
-    path = 'models/Modulation_dB.csv'
+    # Get the directory containing this file (models) and use relative path from there
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Modulation_dB.csv')
     try:
         data = pd.read_csv(path, sep=';')
     except Exception:

@@ -109,7 +109,9 @@ class Satellite:
         elif self.snr_threshold is not None:
             return self.snr_threshold
 
-        path = 'models/Modulation_dB.csv'
+        # Get the directory containing this file and use relative path from there
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(current_dir, 'models', 'Modulation_dB.csv')
         data = pd.read_csv(path, sep=';')
         # line = data.loc[(data.Tech == self.tech) & (data.Modulation == self.modulation) & (data.FEC == self.fec)]
         line = data.loc[(data.Modulation == self.modulation) & (data.FEC == self.fec)]

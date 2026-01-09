@@ -12,6 +12,8 @@ from functools import wraps
 import datetime
 import sqlite3
 import numpy as np
+import logging
+import traceback
 
 # Import our modules
 from models.updated_db_manager import SatLinkDatabaseUser
@@ -29,6 +31,9 @@ user_management_bp.db = None  # Will be set after db is initialized
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 bcrypt = Bcrypt(app)
+
+# Configure logging to include timestamps and level
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 
 # Global database instance
 db = None
@@ -220,7 +225,9 @@ def calculate():
 def api_calculate_link():
     """API endpoint for link calculation"""
     try:
+        logging.info("Starting link calculation API call")
         data = request.json
+        logging.info(f"Received calculation data: {data}")
 
         # Get selected component IDs (coerce to ints when possible)
         def _to_int(val):
@@ -260,6 +267,7 @@ def api_calculate_link():
             if s['id'] == satellite_id:
                 sat = SatellitePosition(s['sat_long'], s['sat_lat'], s['h_sat'])
                 sat.name = s['name']
+                logging.info(f"Found satellite: {sat.name}")
                 break
 
         tp = None
@@ -269,6 +277,7 @@ def api_calculate_link():
                               t['back_off'], t['contorno'])
                 tp.name = t['name']
                 tp.polarization = t.get('polarization')
+                logging.info(f"Found transponder: {tp.name}")
                 break
 
         car = None
@@ -278,6 +287,7 @@ def api_calculate_link():
                 car.name = c['name']
                 car.modcod = c['modcod']
                 car.standard = c.get('standard')
+                logging.info(f"Found carrier: {car.name}")
                 break
 
         gs = None
@@ -286,6 +296,7 @@ def api_calculate_link():
                 gs = {'site_lat': g['site_lat'], 'site_long': g['site_long']}
                 gs['name'] = g['name']
                 gs['altitude'] = g.get('altitude', 0)
+                logging.info(f"Found ground station: {gs['name']}")
                 break
 
         # Load reception system
@@ -320,6 +331,12 @@ def api_calculate_link():
             import pickle
             import os
             import datetime
+            import sys
+
+            # Add the current directory to sys.path to ensure modules can be found
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            if current_dir not in sys.path:
+                sys.path.insert(0, current_dir)
 
             # Prepare calculation parameters
             if not all([satellite_id, transponder_id, carrier_id, ground_station_id, reception_type]):
@@ -463,7 +480,7 @@ def api_calculate_link():
             }
 
         except Exception as calc_error:
-            print(f"Calculation error: {str(calc_error)}")
+            logging.error(f"Calculation error: {str(calc_error)}", exc_info=True)
             # Return error results
             results = {
                 'elevation_angle': 0,
@@ -485,18 +502,23 @@ def api_calculate_link():
             }
 
         # Save calculation to database
-        calc_id = db.add_link_calculation(
-            name=f"Calculation - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            satellite_id=satellite_id,
-            transponder_id=transponder_id,
-            carrier_id=carrier_id,
-            ground_station_id=ground_station_id,
-            reception_type=reception_type,
-            reception_id=reception_id,
-            margin=0,
-            snr_relaxation=0.1,
-            **results
-        )
+        try:
+            calc_id = db.add_link_calculation(
+                name=f"Calculation - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                satellite_id=satellite_id,
+                transponder_id=transponder_id,
+                carrier_id=carrier_id,
+                ground_station_id=ground_station_id,
+                reception_type=reception_type,
+                reception_id=reception_id,
+                margin=0,
+                snr_relaxation=0.1,
+                **results
+            )
+            logging.info(f"Calculation saved to database with ID: {calc_id}")
+        except Exception as db_error:
+            logging.error(f"Database save error: {str(db_error)}", exc_info=True)
+            calc_id = None
 
         return jsonify({
             'success': True,
@@ -505,9 +527,11 @@ def api_calculate_link():
         })
 
     except Exception as e:
+        logging.error(f"Calculation API error: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'message': 'Failed to perform calculation. Please check all parameters are selected correctly.'
         }), 500
 
 
