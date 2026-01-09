@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculation History - SatLink</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .table th {
+            position: sticky;
+            top: 0;
+            background-color: #f8f9fa;
+            z-index: 1;
+        }
+        .status-badge {
+            font-size: 0.875rem;
+        }
+        .results-collapsed {
+            max-height: 100px;
+            overflow: hidden;
+            position: relative;
+        }
+        .results-collapsed::after {
+            content: '...';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: white;
+            padding-left: 20px;
+        }
+        .expanded {
+            max-height: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">SatLink</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/dashboard">Dashboard</a>
+                <a class="nav-link" href="/calculate">Calculate</a>
+                <a class="nav-link" href="/calculations" class="active">Calculations</a>
+                <a class="nav-link" href="/manage">Manage</a>
+                <a class="nav-link" href="/public">Public</a>
+                <a class="nav-link" href="/profile">Profile</a>
+                <a class="nav-link" href="/logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2>Calculation History</h2>
+                <p class="text-muted">View all your previous link calculations</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <a href="/calculate" class="btn btn-primary">New Calculation</a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-body">
+                {% if calculations %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>Satellite</th>
+                                    <th>Transponder</th>
+                                    <th>Ground Station</th>
+                                    <th>Carrier</th>
+                                    <th>Frequency</th>
+                                    <th>Status</th>
+                                    <th>Link Margin</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for calc in calculations %}
+                                <tr>
+                                    <td>{{ calc.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>{{ calc.satellite_name }}</td>
+                                    <td>{{ calc.transponder_name or '-' }}</td>
+                                    <td>{{ calc.ground_station_name }}</td>
+                                    <td>{{ calc.carrier_name or '-' }}</td>
+                                    <td>{{ calc.frequency or '-' }} MHz</td>
+                                    <td>
+                                        {% if calc.link_margin >= calc.snr_threshold %}
+                                            <span class="badge bg-success status-badge">Successful</span>
+                                        {% else %}
+                                            <span class="badge bg-danger status-badge">Failed</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if calc.link_margin is not none %}
+                                            <span class="badge {% if calc.link_margin >= calc.snr_threshold %}bg-success{% else %}bg-danger{% endif %}">
+                                                {{ "%.2f"|format(calc.link_margin) }} dB
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary view-calculation"
+                                                data-calc-id="{{ calc.id }}"
+                                                title="View Details">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger delete-calculation"
+                                                data-calc-id="{{ calc.id }}"
+                                                onclick="confirmDelete({{ calc.id }})"
+                                                title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if total_pages > 1 %}
+                    <nav aria-label="Calculations pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if current_page > 1 %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('calculations', page=current_page-1) }}">Previous</a>
+                                </li>
+                            {% endif %}
+
+                            {% for page_num in range(1, total_pages + 1) %}
+                                {% if page_num == current_page %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ page_num }}</span>
+                                    </li>
+                                {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('calculations', page=page_num) }}">{{ page_num }}</a>
+                                    </li>
+                                {% elif page_num == 4 or page_num == total_pages - 3 %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if current_page < total_pages %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('calculations', page=current_page+1) }}">Next</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-calculator display-1 text-muted"></i>
+                        <h4 class="mt-3 text-muted">No calculations found</h4>
+                        <p class="text-muted">You haven't performed any link calculations yet.</p>
+                        <a href="/calculate" class="btn btn-primary">Start Calculating</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Calculation Details Modal -->
+    <div class="modal fade" id="calculationModal" tabindex="-1" aria-labelledby="calculationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="calculationModalLabel">Calculation Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="calculation-details" class="calculation-results-collapsed">
+                        <!-- Details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Delete Calculation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this calculation? This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form id="deleteForm" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // View calculation details
+        document.querySelectorAll('.view-calculation').forEach(button => {
+            button.addEventListener('click', async function() {
+                const calcId = this.getAttribute('data-calc-id');
+                try {
+                    const response = await fetch(`/api/calculation/${calcId}`);
+                    const data = await response.json();
+
+                    if (data.error) {
+                        alert('Error loading calculation: ' + data.error);
+                        return;
+                    }
+
+                    const detailsHtml = `
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <strong>Satellite:</strong> ${data.satellite_name}<br>
+                                <strong>Transponder:</strong> ${data.transponder_name || 'N/A'}<br>
+                                <strong>Ground Station:</strong> ${data.ground_station_name}<br>
+                                <strong>Carrier:</strong> ${data.carrier_name || 'N/A'}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Created:</strong> ${new Date(data.created_at).toLocaleString()}<br>
+                                <strong>Frequency:</strong> ${data.frequency} MHz<br>
+                                <strong>Polarization:</strong> ${data.polarization}<br>
+                                <strong>Status:</strong> <span class="badge ${data.link_margin >= data.snr_threshold ? 'bg-success' : 'bg-danger'}">${data.link_margin >= data.snr_threshold ? 'Successful' : 'Failed'}</span>
+                            </div>
+                        </div>
+
+                        <h6>Technical Results</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <tr><td><strong>TX Power</strong></td><td>${data.tx_power} dBW</td></tr>
+                                <tr><td><strong>EIRP</strong></td><td>${data.eirp} dBW</td></tr>
+                                <tr><td><strong>Path Loss</strong></td><td>${data.path_loss} dB</td></tr>
+                                <tr><td><strong>Received Power</strong></td><td>${data.rx_power} dBW</td></tr>
+                                <tr><td><strong>Antenna Gain</strong></td><td>${data.antenna_gain} dBi</td></tr>
+                                <tr><td><strong>G/T</strong></td><td>${data.gt_value} dB/K</td></tr>
+                                <tr><td><strong>C/N</strong></td><td>${data.c_n} dB</td></tr>
+                                <tr><td><strong>C/N0</strong></td><td>${data.c_n0} dB-Hz</td></tr>
+                                <tr><td><strong>SNR</strong></td><td>${data.snr} dB</td></tr>
+                                <tr><td><strong>SNR Threshold</strong></td><td>${data.snr_threshold} dB</td></tr>
+                                <tr><td><strong class="${data.link_margin >= data.snr_threshold ? 'text-success' : 'text-danger'}">Link Margin</strong></td><td class="${data.link_margin >= data.snr_threshold ? 'text-success' : 'text-danger'}">${data.link_margin} dB</td></tr>
+                                <tr><td><strong>Availability</strong></td><td>${data.availability}%</td></tr>
+                            </table>
+                        </div>
+                    `;
+
+                    document.getElementById('calculation-details').innerHTML = detailsHtml;
+                    const modal = new bootstrap.Modal(document.getElementById('calculationModal'));
+                    modal.show();
+                } catch (error) {
+                    alert('Network error: ' + error.message);
+                }
+            });
+        });
+
+        // Delete confirmation
+        function confirmDelete(calcId) {
+            document.getElementById('deleteForm').action = `/calculations/${calcId}/delete`;
+            const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            modal.show();
+        }
+
+        // Handle pagination
+        document.querySelectorAll('.pagination .page-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                if (this.parentElement.classList.contains('disabled')) {
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

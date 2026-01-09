@@ -9,7 +9,12 @@
       "Bash(dir:*)",
       "Bash(gh --version:*)",
       "Bash(ls:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(pkill:*)",
+      "Bash(curl:*)",
+      "Bash(start python web_app.py)",
+      "Bash(grep:*)",
+      "Bash(find:*)"
     ]
   }
 }

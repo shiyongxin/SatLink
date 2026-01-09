@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Ground Station - SatLink</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">SatLink</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/dashboard">Dashboard</a>
+                <a class="nav-link" href="/manage/ground_stations">Ground Stations</a>
+                <a class="nav-link" href="/logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-8 mx-auto">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title text-center">Add New Ground Station</h2>
+
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <form method="POST">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Ground Station Name</label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="site_lat" class="form-label">Latitude (degrees)</label>
+                                        <input type="number" step="0.000001" class="form-control" id="site_lat" name="site_lat" required>
+                                        <small class="text-muted">-90 to 90 degrees</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="site_long" class="form-label">Longitude (degrees)</label>
+                                        <input type="number" step="0.000001" class="form-control" id="site_long" name="site_long" required>
+                                        <small class="text-muted">-180 to 180 degrees</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="site_name" class="form-label">Site Name</label>
+                                <input type="text" class="form-control" id="site_name" name="site_name">
+                                <small class="text-muted">e.g., Space Center, Observatory</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="altitude" class="form-label">Altitude (meters)</label>
+                                <input type="number" class="form-control" id="altitude" name="altitude" value="0">
+                                <small class="text-muted">Above sea level</small>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="country" class="form-label">Country</label>
+                                        <input type="text" class="form-control" id="country" name="country">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="region" class="form-label">Region/State</label>
+                                        <input type="text" class="form-control" id="region" name="region">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="city" class="form-label">City</label>
+                                        <input type="text" class="form-control" id="city" name="city">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="climate_zone" class="form-label">Climate Zone</label>
+                                        <select class="form-select" id="climate_zone" name="climate_zone">
+                                            <option value="">Select zone</option>
+                                            <option value="A">A (Tropical Rainforest)</option>
+                                            <option value="B">B (Tropical Monsoon)</option>
+                                            <option value="C">C (Temperate/Mesothermal)</option>
+                                            <option value="D">D (Continental/Microthermal)</option>
+                                            <option value="E">E (Polar/Tundra)</option>
+                                            <option value="F">F (Ice Cap)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="itu_region" class="form-label">ITU Region</label>
+                                        <select class="form-select" id="itu_region" name="itu_region">
+                                            <option value="">Select region</option>
+                                            <option value="1">Region 1 (Europe, Africa, Middle East)</option>
+                                            <option value="2">Region 2 (Americas)</option>
+                                            <option value="3">Region 3 (Asia, Australia, Pacific)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                            </div>
+
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="is_shared" name="is_shared">
+                                <label class="form-check-label" for="is_shared">
+                                    Share publicly with other users
+                                </label>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">Add Ground Station</button>
+                                <a href="/manage/ground_stations" class="btn btn-secondary">Cancel</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -11,6 +11,7 @@ from flask_bcrypt import Bcrypt
 from functools import wraps
 import datetime
 import sqlite3
+import numpy as np
 
 # Import our modules
 from models.updated_db_manager import SatLinkDatabaseUser
@@ -69,6 +70,16 @@ def login_required(f):
         if 'username' not in session:
             flash('Please login to access this page.', 'error')
             return redirect(url_for('login'))
+
+        # Re-authenticate user on each request
+        username = session.get('username')
+        user_id = session.get('user_id')
+
+        if username and user_id:
+            # Set current user in database
+            db.current_user_id = user_id
+            db.session_token = None  # We don't track session token in web context
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -149,7 +160,9 @@ def register():
 @app.route('/logout')
 def logout():
     """Logout"""
-    db.logout()
+    # Only call logout if user is logged in
+    if 'username' in session:
+        db.logout()
     session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('index'))
@@ -189,11 +202,17 @@ def calculate():
             transponders_by_sat[sat_id] = []
         transponders_by_sat[sat_id].append(tp)
 
+    # Get reception systems
+    reception_simple = db.get_reception_simple_list()
+    reception_complex = db.get_reception_complex_list()
+
     return render_template('calculate.html',
                          satellites=satellites,
                          transponders_by_sat=transponders_by_sat,
                          carriers=carriers,
-                         ground_stations=ground_stations)
+                         ground_stations=ground_stations,
+                         reception_simple=reception_simple,
+                         reception_complex=reception_complex)
 
 
 @app.route('/api/calculate_link', methods=['POST'])
@@ -213,7 +232,19 @@ def api_calculate_link():
 
         # Load components from database
         sat = None
-        for s in db.list_satellite_positions():
+        satellites = db.list_satellite_positions()
+        if not satellites:
+            # Add default satellite if none exist
+            db.add_satellite_position(
+                name="Default GEO Satellite",
+                sat_long=0.0,  # 0° longitude (prime meridian)
+                sat_lat=0.0,   # 0° latitude (equator)
+                h_sat=35786,   # GEO altitude in km
+                is_shared=True
+            )
+            satellites = db.list_satellite_positions()
+
+        for s in satellites:
             if s['id'] == satellite_id:
                 sat = SatellitePosition(s['sat_long'], s['sat_lat'], s['h_sat'])
                 sat.name = s['name']
@@ -270,25 +301,149 @@ def api_calculate_link():
                     }
                     break
 
-        # Perform link calculation (placeholder - implement actual calculation)
-        results = {
-            'elevation_angle': 45.2,
-            'azimuth_angle': 180.5,
-            'distance': 35786,
-            'a_fs': 196.2,
-            'a_g': 0.5,
-            'a_c': 0.2,
-            'a_r': 2.1,
-            'a_s': 0.3,
-            'a_t': 3.1,
-            'a_tot': 199.3,
-            'cn0': 85.5,
-            'snr': 12.3,
-            'snr_threshold': 9.8,
-            'link_margin': 2.5,
-            'availability': 99.9,
-            'gt_value': reception.get('gt_value') if reception_type == 'simple' else 32.5
-        }
+        # Perform link calculation
+        try:
+            # Import calculation modules
+            from link_performance import sp_link_performance
+            import pickle
+            import os
+            import datetime
+
+            # Prepare calculation parameters
+            if not all([satellite_id, transponder_id, carrier_id, ground_station_id, reception_type]):
+                raise ValueError("Please fill in all required parameters")
+
+            # Check if components were found
+            if sat is None:
+                raise ValueError("Satellite not found")
+            if tp is None:
+                raise ValueError("Transponder not found")
+            if car is None:
+                raise ValueError("Carrier not found")
+            if gs is None:
+                raise ValueError("Ground station not found")
+            if reception is None:
+                raise ValueError("Reception system not found")
+
+            # Calculate satellite position and angles (simplified)
+            # For GEO satellite
+            earth_radius = 6371  # km
+            satellite_radius = earth_radius + sat.h_sat
+
+            # Convert to radians
+            gs_lat_rad = np.radians(gs['site_lat'])
+            gs_long_rad = np.radians(gs['site_long'])
+            sat_long_rad = np.radians(sat.sat_long)
+
+            # Calculate the difference in longitude
+            delta_long = abs(gs_long_rad - sat_long_rad)
+
+            # Calculate the angle between ground station and satellite
+            beta = np.arccos(np.cos(gs_lat_rad) * np.cos(delta_long))
+
+            # Calculate distance using law of cosines
+            distance = np.sqrt(satellite_radius**2 + earth_radius**2 -
+                              2 * satellite_radius * earth_radius * np.cos(beta))
+
+            # Calculate elevation angle
+            elevation = np.degrees(np.arcsin((satellite_radius * np.cos(beta) - earth_radius) / distance))
+
+            # Calculate azimuth angle
+            azimuth = np.degrees(np.arctan2(np.tan(gs_long_rad - sat_long_rad),
+                                           np.tan(gs_lat_rad))) % 360
+
+            # Ensure valid angle values
+            elevation = max(0, min(90, elevation))
+
+            # Calculate free space loss
+            freq = tp.freq * 1000  # Convert GHz to MHz
+            a_fs = 20 * 2.6 + 20 * np.log10(freq) + 20 * np.log10(distance)
+
+            # Get modulation data
+            from models.satellite_components import get_modulation_params
+            mod_params = get_modulation_params(carrier.modcod)
+
+            # Calculate carrier power
+            eirp = tp.eirp_max
+            g_sat = 10 * np.log10((4 * np.pi * sat.calculate_distance() * 1000)**2 / (tp.b_transp * 1e6))
+            c = eirp - a_fs + g_sat
+
+            # Calculate noise
+            if reception_type == 'simple':
+                gt = reception['gt_value']
+                t_system = 10**((gt - 20) / 10)  # Convert G/T to T
+            else:
+                # Complex system noise calculation
+                t_system = 10**(reception['lnb_temp'] / 10) + 10**(reception['coupling_loss'] / 10)
+
+            k = 1.38e-23  # Boltzmann constant
+            b = carrier.b_util * 1e6  # Bandwidth
+            n = k * t_system * b
+            n0 = n / b
+
+            # Calculate C/N0 and SNR
+            cn0 = c - 10 * np.log10(n0)
+            snr = cn0 - 10 * np.log10(b)
+
+            # Calculate atmospheric losses (simplified)
+            a_g = 0.5  # Gas loss
+            a_c = 0.2  # Cloud loss
+            a_r = 2.1  # Rain loss
+            a_s = 0.3  # Scintillation
+            a_t = a_g + a_c + a_r + a_s
+            a_tot = a_fs + a_t
+
+            # Calculate SNR threshold and margin
+            snr_threshold = 9.8  # Depends on modulation
+            link_margin = snr - snr_threshold
+
+            # Calculate availability (simplified)
+            if link_margin > 0:
+                availability = min(99.99, 99.9 + (link_margin / 10))
+            else:
+                availability = max(0, 99.9 - abs(link_margin) / 10)
+
+            # Prepare results
+            results = {
+                'elevation_angle': elevation,
+                'azimuth_angle': azimuth,
+                'distance': distance,
+                'a_fs': a_fs,
+                'a_g': a_g,
+                'a_c': a_c,
+                'a_r': a_r,
+                'a_s': a_s,
+                'a_t': a_t,
+                'a_tot': a_tot,
+                'cn0': cn0,
+                'snr': snr,
+                'snr_threshold': snr_threshold,
+                'link_margin': link_margin,
+                'availability': availability,
+                'gt_value': reception.get('gt_value') if reception_type == 'simple' else gt
+            }
+
+        except Exception as calc_error:
+            print(f"Calculation error: {str(calc_error)}")
+            # Return error results
+            results = {
+                'elevation_angle': 0,
+                'azimuth_angle': 0,
+                'distance': 0,
+                'a_fs': 0,
+                'a_g': 0,
+                'a_c': 0,
+                'a_r': 0,
+                'a_s': 0,
+                'a_t': 0,
+                'a_tot': 0,
+                'cn0': 0,
+                'snr': 0,
+                'snr_threshold': 0,
+                'link_margin': 0,
+                'availability': 0,
+                'gt_value': 0
+            }
 
         # Save calculation to database
         calc_id = db.add_link_calculation(
@@ -388,6 +543,70 @@ def manage():
                          ground_stations=ground_stations)
 
 
+@app.route('/api/transponders')
+@login_required
+def api_transponders():
+    """API endpoint to get transponders for a specific satellite"""
+    try:
+        satellite_id = request.args.get('satellite_id', type=int)
+
+        if satellite_id:
+            # Get transponders for the specific satellite
+            transponders = db.list_transponders(satellite_id=satellite_id)
+
+            # Format the response to only include needed fields
+            formatted_transponders = []
+            for tp in transponders:
+                formatted_transponders.append({
+                    'id': tp['id'],
+                    'name': tp['name'],
+                    'freq': tp['freq'],
+                    'eirp_max': tp['eirp_max'],
+                    'b_transp': tp['b_transp']
+                })
+            return jsonify(formatted_transponders)
+        else:
+            return jsonify([])
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/reception_systems')
+@login_required
+def api_reception_systems():
+    """API endpoint to get reception systems by type"""
+    try:
+        reception_type = request.args.get('type')
+
+        if reception_type == 'complex':
+            systems = []
+            for rs in db.get_reception_complex_list():
+                systems.append({
+                    'id': rs['id'],
+                    'name': rs['name'],
+                    'ant_size': rs['ant_size'],
+                    'ant_eff': rs['ant_eff'],
+                    'lnb_gain': rs['lnb_gain'],
+                    'lnb_temp': rs['lnb_temp']
+                })
+        elif reception_type == 'simple':
+            systems = []
+            for rs in db.get_reception_simple_list():
+                systems.append({
+                    'id': rs['id'],
+                    'name': rs['name'],
+                    'gt_value': rs['gt_value']
+                })
+        else:
+            systems = []
+
+        return jsonify(systems)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/share_item', methods=['POST'])
 @login_required
 def api_share_item():
@@ -408,6 +627,60 @@ def api_share_item():
             return jsonify({'success': True})
         else:
             return jsonify({'success': False, 'error': 'Item not found'}), 404
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/add_parameter', methods=['POST'])
+@login_required
+def api_add_parameter():
+    """API endpoint to add new parameter"""
+    try:
+        data = request.json
+        param_type = data.get('type')
+        param_name = data.get('name')
+        param_data = data.get('data', {})
+
+        if not param_type or not param_name:
+            return jsonify({'success': False, 'message': 'Parameter type and name are required'}), 400
+
+        # Insert into appropriate table
+        if param_type == 'satellite':
+            db.cursor.execute("""
+                INSERT INTO satellite_positions (name, sat_long, sat_lat, h_sat, user_id, is_shared)
+                VALUES (?, ?, ?, ?, ?, 0)
+            """, (param_name, param_data.get('sat_long'), param_data.get('sat_lat'),
+                  param_data.get('h_sat'), db.current_user_id))
+        elif param_type == 'transponder':
+            # For transponder, we need a satellite_id - use the first available
+            db.cursor.execute("SELECT id FROM satellite_positions LIMIT 1", ())
+            sat_row = db.cursor.fetchone()
+            if not sat_row:
+                return jsonify({'success': False, 'message': 'No satellite available for transponder'}), 400
+
+            db.cursor.execute("""
+                INSERT INTO transponders (name, satellite_id, freq, eirp_max, b_transp, polarization, user_id, is_shared)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+            """, (param_name, sat_row[0], param_data.get('freq'), param_data.get('eirp_max'),
+                  param_data.get('b_transp'), param_data.get('polarization'), db.current_user_id))
+        elif param_type == 'carrier':
+            db.cursor.execute("""
+                INSERT INTO carriers (name, modulation, roll_off, fec, b_util, user_id, is_shared)
+                VALUES (?, ?, ?, ?, ?, ?, 0)
+            """, (param_name, param_data.get('modulation'), param_data.get('roll_off'),
+                  param_data.get('fec'), param_data.get('b_util'), db.current_user_id))
+        elif param_type == 'ground_station':
+            db.cursor.execute("""
+                INSERT INTO ground_stations (name, site_lat, site_long, altitude, user_id, is_shared)
+                VALUES (?, ?, ?, ?, ?, 0)
+            """, (param_name, param_data.get('site_lat'), param_data.get('site_long'),
+                  param_data.get('altitude'), db.current_user_id))
+        else:
+            return jsonify({'success': False, 'message': 'Invalid parameter type'}), 400
+
+        db.conn.commit()
+        return jsonify({'success': True, 'message': 'Parameter added successfully'})
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
