@@ -222,13 +222,21 @@ def api_calculate_link():
     try:
         data = request.json
 
-        # Get selected component IDs
-        satellite_id = data.get('satellite_id')
-        transponder_id = data.get('transponder_id')
-        carrier_id = data.get('carrier_id')
-        ground_station_id = data.get('ground_station_id')
+        # Get selected component IDs (coerce to ints when possible)
+        def _to_int(val):
+            try:
+                if val is None or val == '':
+                    return None
+                return int(val)
+            except Exception:
+                return None
+
+        satellite_id = _to_int(data.get('satellite_id'))
+        transponder_id = _to_int(data.get('transponder_id'))
+        carrier_id = _to_int(data.get('carrier_id'))
+        ground_station_id = _to_int(data.get('ground_station_id'))
         reception_type = data.get('reception_type')
-        reception_id = data.get('reception_id')
+        reception_id = _to_int(data.get('reception_id'))
 
         # Load components from database
         sat = None
@@ -361,15 +369,23 @@ def api_calculate_link():
 
             # Calculate free space loss
             freq = tp.freq * 1000  # Convert GHz to MHz
+            # Protect against zero bandwidths that would cause division errors
+            if getattr(tp, 'b_transp', None) in (None, 0):
+                tp.b_transp = 36
+            if getattr(car, 'b_util', None) in (None, 0):
+                car.b_util = 36
+
             a_fs = 20 * 2.6 + 20 * np.log10(freq) + 20 * np.log10(distance)
 
             # Get modulation data
             from models.satellite_components import get_modulation_params
-            mod_params = get_modulation_params(carrier.modcod)
+            mod_params = get_modulation_params(car.modcod)
 
             # Calculate carrier power
             eirp = tp.eirp_max
-            g_sat = 10 * np.log10((4 * np.pi * sat.calculate_distance() * 1000)**2 / (tp.b_transp * 1e6))
+            # Avoid division by zero in gain calculation
+            b_transp_hz = tp.b_transp * 1e6 if tp.b_transp else 36 * 1e6
+            g_sat = 10 * np.log10((4 * np.pi * sat.calculate_distance() * 1000)**2 / (b_transp_hz))
             c = eirp - a_fs + g_sat
 
             # Calculate noise
@@ -378,10 +394,29 @@ def api_calculate_link():
                 t_system = 10**((gt - 20) / 10)  # Convert G/T to T
             else:
                 # Complex system noise calculation
-                t_system = 10**(reception['lnb_temp'] / 10) + 10**(reception['coupling_loss'] / 10)
+                t_system = 10**(reception.get('lnb_temp', 290) / 10) + 10**(reception.get('coupling_loss', 0) / 10)
+
+                # Estimate G/T for complex reception if not provided
+                ant_size = reception.get('ant_size', 1.0)  # meters
+                ant_eff = reception.get('ant_eff', 0.55)
+                # frequency available in transponder (tp.freq in GHz)
+                try:
+                    freq_hz = tp.freq * 1e9
+                    wavelength = 3e8 / freq_hz
+                    g_lin = (np.pi * ant_size / wavelength) ** 2 * ant_eff
+                    g_dbi = 10 * np.log10(g_lin) if g_lin > 0 else 0.0
+                except Exception:
+                    g_dbi = 0.0
+
+                # Ensure t_system positive
+                t_sys_for_gt = t_system if t_system > 0 else 290.0
+                gt = g_dbi - 10 * np.log10(t_sys_for_gt)
 
             k = 1.38e-23  # Boltzmann constant
-            b = carrier.b_util * 1e6  # Bandwidth
+            b = car.b_util * 1e6  # Bandwidth
+            if b == 0:
+                b = 36 * 1e6
+                car.b_util = 36
             n = k * t_system * b
             n0 = n / b
 

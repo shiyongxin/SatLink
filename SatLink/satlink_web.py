@@ -103,7 +103,7 @@ if db_field:
     sp_link_performance()  # function to calculate the link performace
 
     path = 'temp/out.txt'
-    with open(path, 'r') as output:  # this will pick the output form sp_link_performance
+    with open(path, 'r', encoding='utf-8', errors='replace') as output:  # this will pick the output form sp_link_performance
         x = output.read()
 
     st.text(x)

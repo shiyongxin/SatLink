@@ -147,8 +147,21 @@ class Reception:
             return self.t_sky
         else:
             path = 'models/ClearSkyTemp ITU 372.csv'
-            data = pd.read_csv(path, sep=';', index_col=0)
-            self.t_sky = util.curve_interpolation(self.freq, self.e, data)
+            # If file missing, fallback to zero brightness temperature and warn
+            try:
+                if not os.path.exists(path):
+                    print(f"Warning: brightness temperature file not found: {path}")
+                    self.t_sky = 0.0
+                else:
+                    try:
+                        data = pd.read_csv(path, sep=';', index_col=0, encoding='utf-8')
+                    except UnicodeDecodeError:
+                        # fallback to latin1 if file contains non-UTF-8 bytes
+                        data = pd.read_csv(path, sep=';', index_col=0, encoding='latin1')
+                    self.t_sky = util.curve_interpolation(self.freq, self.e, data)
+            except Exception as exc:
+                print(f"Error reading brightness temperature file: {exc}")
+                self.t_sky = 0.0
         if printer:
             print('elevation: ', self.e, ' freq: ', self.freq, ' Tsky (brightness temperature): ', self.t_sky)
 

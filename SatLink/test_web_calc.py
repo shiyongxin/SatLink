@@ -94,7 +94,7 @@ if os.path.exists(result_path):
     print("=" * 50)
     print("CALCULATION RESULTS")
     print("=" * 50)
-    with open(result_path, 'r') as f:
+    with open(result_path, 'r', encoding='utf-8', errors='replace') as f:
         print(f.read())
     os.remove(result_path)
 else:

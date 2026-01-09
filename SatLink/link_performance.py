@@ -75,7 +75,7 @@ def sp_link_performance():  # this function runs the availability for a single p
 
     ############ SNR target's calcullation ################
     path = os.path.join(script_dir, 'temp', 'out.txt')
-    sys.stdout = open(path, 'w')
+    sys.stdout = open(path, 'w', encoding='utf-8')
 
     start = time.time()
     print('RESULTS', file=sys.stdout)
@@ -173,7 +173,7 @@ def mp_link_performance():
     pool = ParallelPool(nodes=threads)  # creating the parallelPoll
 
     path = os.path.join(script_dir, 'temp', 'out.txt')
-    sys.stderr = open(path, 'w')  # to print the output dynamically
+    sys.stderr = open(path, 'w', encoding='utf-8')  # to print the output dynamically
 
     print('initializing . . .', file=sys.stderr)
 

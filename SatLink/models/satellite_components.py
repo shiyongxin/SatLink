@@ -35,6 +35,14 @@ class SatellitePosition:
     def __repr__(self):
         return f"SatellitePosition(long={self.sat_long}°, lat={self.sat_lat}°, alt={self.h_sat}km)"
 
+    def calculate_distance(self):
+        """Return approximate satellite distance from Earth's center in km.
+
+        Uses a standard Earth radius of 6371 km and the satellite's altitude.
+        """
+        earth_radius = 6371  # km
+        return earth_radius + self.h_sat
+
 
 class Transponder:
     """
@@ -183,8 +191,94 @@ def calculate_eirp(transponder, carrier):
     float
         Effective EIRP in dBW
     """
+    # Protect against zero bandwidth values
+    if getattr(transponder, 'b_transp', None) in (None, 0):
+        transponder.b_transp = 36
+    if getattr(carrier, 'b_util', None) in (None, 0):
+        carrier.b_util = 36
+
     eirp = (transponder.eirp_max
             - transponder.back_off
             - transponder.contorno
             + 10 * np.log10(carrier.b_util / transponder.b_transp))
     return eirp
+
+
+def get_modulation_params(modcod):
+    """Return modulation parameters for a given MODCOD string.
+
+    Looks up `models/Modulation_dB.csv` for a matching `Modcod` or
+    `Modulation`+`FEC` entry. Returns a dict with keys:
+    - modulation
+    - fec
+    - inforate (bits/s/Hz) or None
+    - c_over_n (dB) or None
+    """
+    path = 'models/Modulation_dB.csv'
+    try:
+        data = pd.read_csv(path, sep=';')
+    except Exception:
+        # fallback to default CSV reader if separator different
+        data = pd.read_csv(path)
+
+    # Try exact Modcod match first
+    if 'Modcod' in data.columns:
+        line = data.loc[data.Modcod == modcod]
+        if not line.empty:
+            row = line.iloc[0]
+            return {
+                'modulation': row.get('Modulation', ''),
+                'fec': row.get('FEC', ''),
+                'inforate': row.get('Inforate efficiency bps_Hz', None),
+                'c_over_n': row.get('C_over_N', None),
+            }
+
+    # Try parsing modcod like "8PSK 120/180" or short FEC like "8PSK 2/3"
+    parts = str(modcod).split()
+    if len(parts) >= 2:
+        modulation = parts[0]
+        fec = parts[1]
+
+        # If fec is in short form like '2/3', convert to scaled '/180' form used in CSV
+        if '/' in fec:
+            nums = fec.split('/')
+            try:
+                num = int(nums[0])
+                den = int(nums[1])
+                if den != 0:
+                    scaled = int(round(num / den * 180))
+                    fec_scaled = f"{scaled}/180"
+                else:
+                    fec_scaled = fec
+            except Exception:
+                fec_scaled = fec
+        else:
+            fec_scaled = fec
+
+        # Try exact match with provided FEC first
+        line = data.loc[(data.Modulation == modulation) & (data.FEC == fec)]
+        if line.empty and fec_scaled != fec:
+            # Try scaled form (e.g., '2/3' -> '120/180')
+            line = data.loc[(data.Modulation == modulation) & (data.FEC == fec_scaled)]
+
+        if not line.empty:
+            row = line.iloc[0]
+            return {
+                'modulation': row.get('Modulation', modulation),
+                'fec': row.get('FEC', fec_scaled if row.get('FEC', None) is None else row.get('FEC')),
+                'inforate': row.get('Inforate efficiency bps_Hz', None),
+                'c_over_n': row.get('C_over_N', None),
+            }
+
+    # Last resort: try matching modulation only
+    line = data.loc[data.Modulation == str(modcod)]
+    if not line.empty:
+        row = line.iloc[0]
+        return {
+            'modulation': row.get('Modulation', ''),
+            'fec': row.get('FEC', ''),
+            'inforate': row.get('Inforate efficiency bps_Hz', None),
+            'c_over_n': row.get('C_over_N', None),
+        }
+
+    raise ValueError(f"MODCOD or modulation '{modcod}' not found in {path}")
