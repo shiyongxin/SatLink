@@ -1,7 +1,8 @@
 """
-SatLink Web User Management
+SatLink Web User Management - Fixed Version
 
 Additional Flask routes for user management, sharing features, and item management.
+Modified to work with the main app's db instance and login_required decorator.
 """
 
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, session
@@ -11,20 +12,44 @@ from models.updated_db_manager import SatLinkDatabaseUser
 user_management_bp = Blueprint('user_management', __name__, url_prefix='/manage')
 
 
+def require_login(f):
+    """Runtime login check that doesn't require decorator at import time"""
+    def decorated_function(*args, **kwargs):
+        if 'username' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def get_db():
+    """Get database instance at runtime"""
+    return getattr(user_management_bp, 'db', None)
+
+
 @user_management_bp.route('/satellites')
 def manage_satellites():
+    """Manage satellite positions"""
     # Check if user is logged in
     if 'username' not in session:
         return redirect(url_for('login'))
-    """Manage satellite positions"""
+
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('dashboard'))
+
     satellites = db.list_satellite_positions(user_id=db.current_user_id, include_shared=False)
     return render_template('manage_satellites.html', satellites=satellites)
 
 
 @user_management_bp.route('/satellites/add', methods=['GET', 'POST'])
-@login_required
 def add_satellite():
     """Add new satellite position"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
         try:
             name = request.form['name']
@@ -51,9 +76,13 @@ def add_satellite():
 
 
 @user_management_bp.route('/satellites/<int:sat_id>/edit', methods=['GET', 'POST'])
-@login_required
 def edit_satellite(sat_id):
     """Edit satellite position"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('dashboard'))
+
     # Get satellite details
     satellite = None
     for sat in db.list_satellite_positions():
@@ -91,9 +120,13 @@ def edit_satellite(sat_id):
 
 
 @user_management_bp.route('/satellites/<int:sat_id>/delete', methods=['POST'])
-@login_required
 def delete_satellite(sat_id):
     """Delete satellite position"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('dashboard'))
+
     try:
         success = db.delete_satellite_position(sat_id)
         if success:
@@ -107,9 +140,12 @@ def delete_satellite(sat_id):
 
 
 @user_management_bp.route('/satellites/<int:sat_id>/share', methods=['POST'])
-@login_required
 def toggle_satellite_share(sat_id):
     """Toggle satellite sharing status"""
+    db = get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
     try:
         # Check ownership
         satellite = None
@@ -139,9 +175,13 @@ def toggle_satellite_share(sat_id):
 
 
 @user_management_bp.route('/transponders')
-@login_required
 def manage_transponders():
     """Manage transponders"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('dashboard'))
+
     transponders = db.list_transponders(user_id=db.current_user_id, include_shared=False)
     satellites = db.list_satellite_positions()
     return render_template('manage_transponders.html',
@@ -150,9 +190,13 @@ def manage_transponders():
 
 
 @user_management_bp.route('/transponders/add', methods=['GET', 'POST'])
-@login_required
 def add_transponder():
     """Add new transponder"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('dashboard'))
+
     satellites = db.list_satellite_positions(user_id=db.current_user_id, include_shared=True)
 
     if request.method == 'POST':
@@ -184,9 +228,13 @@ def add_transponder():
 
 
 @user_management_bp.route('/transponders/<int:tp_id>/delete', methods=['POST'])
-@login_required
 def delete_transponder(tp_id):
     """Delete transponder"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('user_management.manage_transponders'))
+
     # Check ownership first
     transponder = None
     for tp in db.list_transponders():
@@ -213,18 +261,26 @@ def delete_transponder(tp_id):
 
 
 @user_management_bp.route('/carriers')
-@login_required
 def manage_carriers():
     """Manage carrier configurations"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('dashboard'))
+
     carriers = db.list_carriers(user_id=db.current_user_id, include_shared=False)
     return render_template('manage_carriers.html', carriers=carriers)
 
 
 @user_management_bp.route('/carriers/add', methods=['GET', 'POST'])
-@login_required
 def add_carrier():
     """Add new carrier configuration"""
     if request.method == 'POST':
+        db = get_db()
+        if not db:
+            flash('Database not initialized', 'error')
+            return redirect(url_for('dashboard'))
+
         try:
             name = request.form['name']
             modcod = request.form['modcod']
@@ -254,9 +310,13 @@ def add_carrier():
 
 
 @user_management_bp.route('/carriers/<int:car_id>/delete', methods=['POST'])
-@login_required
 def delete_carrier(car_id):
     """Delete carrier configuration"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('user_management.manage_carriers'))
+
     # Check ownership first
     carrier = None
     for car in db.list_carriers():
@@ -283,9 +343,13 @@ def delete_carrier(car_id):
 
 
 @user_management_bp.route('/ground_stations')
-@login_required
 def manage_ground_stations():
     """Manage ground stations"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('dashboard'))
+
     ground_stations = db.list_ground_stations(user_id=db.current_user_id, include_shared=False)
     countries = sorted(set(gs['country'] for gs in ground_stations if gs['country']))
     return render_template('manage_ground_stations.html',
@@ -294,10 +358,14 @@ def manage_ground_stations():
 
 
 @user_management_bp.route('/ground_stations/add', methods=['GET', 'POST'])
-@login_required
 def add_ground_station():
     """Add new ground station"""
     if request.method == 'POST':
+        db = get_db()
+        if not db:
+            flash('Database not initialized', 'error')
+            return redirect(url_for('dashboard'))
+
         try:
             name = request.form['name']
             site_lat = float(request.form['site_lat'])
@@ -329,9 +397,13 @@ def add_ground_station():
 
 
 @user_management_bp.route('/ground_stations/<int:gs_id>/delete', methods=['POST'])
-@login_required
 def delete_ground_station(gs_id):
     """Delete ground station"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('user_management.manage_ground_stations'))
+
     # Check ownership first
     gs = None
     for ground_station in db.list_ground_stations():
@@ -364,9 +436,13 @@ def delete_ground_station(gs_id):
 
 
 @user_management_bp.route('/reception_complex/add', methods=['POST'])
-@login_required
 def add_reception_complex():
     """Add complex reception system via API"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('user_management.manage_reception_complex'))
+
     try:
         name = request.form['name']
         ground_station_id = int(request.form['ground_station_id'])
@@ -397,9 +473,13 @@ def add_reception_complex():
 
 
 @user_management_bp.route('/reception_simple/add', methods=['POST'])
-@login_required
 def add_reception_simple():
     """Add simple reception system via API"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('user_management.manage_reception_systems'))
+
     try:
         name = request.form['name']
         ground_station_id = int(request.form['ground_station_id'])
@@ -426,9 +506,12 @@ def add_reception_simple():
 
 
 @user_management_bp.route('/calculations/<int:calc_id>/share', methods=['POST'])
-@login_required
 def toggle_calculation_share(calc_id):
     """Toggle calculation sharing status"""
+    db = get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
     try:
         # Check ownership
         calculation = None
@@ -453,9 +536,12 @@ def toggle_calculation_share(calc_id):
 
 
 @user_management_bp.route('/api/transponders')
-@login_required
 def api_get_transponders():
     """API to get transponders by satellite"""
+    db = get_db()
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
     satellite_id = request.args.get('satellite_id', type=int)
 
     transponders = []
@@ -474,9 +560,12 @@ def api_get_transponders():
 
 
 @user_management_bp.route('/api/reception_systems')
-@login_required
 def api_get_reception_systems():
     """API to get reception systems by type"""
+    db = get_db()
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
+
     reception_type = request.args.get('type')
 
     systems = []
@@ -498,9 +587,3 @@ def api_get_reception_systems():
                 })
 
     return jsonify(systems)
-
-
-# Register the blueprint with the main app
-# This would be done in the main web_app.py:
-# from web_user_management import user_management_bp
-# app.register_blueprint(user_management_bp)

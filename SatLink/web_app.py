@@ -18,6 +18,12 @@ from models.updated_satlink_db_schema import UPDATED_SQL_SCHEMA
 from models.user_auth import UserAuth
 from models.satellite_components import SatellitePosition, Transponder, Carrier
 
+# Import user management blueprint
+from web_user_management import user_management_bp
+
+# Make db instance available to the blueprint
+user_management_bp.db = None  # Will be set after db is initialized
+
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
@@ -27,10 +33,13 @@ bcrypt = Bcrypt(app)
 db = None
 
 
-def init_db(db_path='satlink_web.db'):
+def init_db(db_path='satlink.db'):
     """Initialize database with schema"""
     global db
     db = SatLinkDatabaseUser(db_path)
+
+    # Make db available to user management blueprint
+    user_management_bp.db = db
 
     # Create tables if they don't exist
     conn = sqlite3.connect(db_path)
@@ -64,7 +73,7 @@ def login_required(f):
     return decorated_function
 
 
-def init_db_clean(db_path='satlink_web.db'):
+def init_db_clean(db_path='satlink.db'):
     """Initialize database with clean schema"""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -929,6 +938,12 @@ calculate_html = """<!DOCTYPE html>
 </body>
 </html>"""
 
+# Make login_required available to blueprint
+user_management_bp.login_required = login_required
+
+# Register user management blueprint
+app.register_blueprint(user_management_bp)
+
 # Write templates
 with open('templates/index.html', 'w') as f:
     f.write(index_html)
@@ -944,7 +959,7 @@ with open('templates/calculate.html', 'w') as f:
 
 if __name__ == '__main__':
     # Initialize database
-    init_db('satlink_web.db')
+    init_db('satlink.db')
 
     # Run the app
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone:*)",
+      "Bash(pip install:*)",
+      "Bash(streamlit run:*)",
+      "Bash(python:*)",
+      "Bash(claude skills:*)",
+      "Bash(dir:*)",
+      "Bash(gh --version:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
