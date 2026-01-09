@@ -62,6 +62,26 @@
 
         <div class="row mt-4">
             <div class="col-md-6">
+                <div class="card bg-secondary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Reception Systems</h5>
+                        <h3>{{ reception_simple|length + reception_complex|length }}</h3>
+                        <small class="text-white-50">{{ reception_simple|length }} Simple + {{ reception_complex|length }} Complex</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Ground Stations</h5>
+                        <h3>{{ ground_stations|length }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
                         <h5>Recent Calculations</h5>
@@ -91,6 +111,7 @@
                         <div class="d-grid gap-2">
                             <a href="/calculate" class="btn btn-primary">New Calculation</a>
                             <a href="/manage" class="btn btn-secondary">Manage Items</a>
+                            <a href="/manage/reception_systems" class="btn btn-success">Manage Reception Systems</a>
                             <a href="/public" class="btn btn-info">Browse Public Items</a>
                         </div>
                     </div>

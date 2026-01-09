@@ -33,7 +33,14 @@ app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 bcrypt = Bcrypt(app)
 
 # Configure logging to include timestamps and level
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s %(message)s',
+    handlers=[
+        logging.FileHandler('satlink_app.log'),
+        logging.StreamHandler()
+    ]
+)
 
 # Global database instance
 db = None
@@ -183,10 +190,18 @@ def dashboard():
     # Get recent calculations
     calculations = db.list_link_calculations()[:5]
 
+    # Get reception systems and ground stations
+    reception_simple = db.list_reception_simple(user_id=db.current_user_id, include_shared=False)
+    reception_complex = db.list_reception_complex(user_id=db.current_user_id, include_shared=False)
+    ground_stations = db.list_ground_stations(user_id=db.current_user_id, include_shared=False)
+
     return render_template('dashboard.html',
                          user_info=user_info,
                          stats=stats,
-                         calculations=calculations)
+                         calculations=calculations,
+                         reception_simple=reception_simple,
+                         reception_complex=reception_complex,
+                         ground_stations=ground_stations)
 
 
 @app.route('/calculate')
@@ -598,12 +613,16 @@ def manage():
     transponders = db.list_transponders(user_id=db.current_user_id, include_shared=False)
     carriers = db.list_carriers(user_id=db.current_user_id, include_shared=False)
     ground_stations = db.list_ground_stations(user_id=db.current_user_id, include_shared=False)
+    reception_simple = db.list_reception_simple(user_id=db.current_user_id, include_shared=False)
+    reception_complex = db.list_reception_complex(user_id=db.current_user_id, include_shared=False)
 
     return render_template('manage.html',
                          satellites=satellites,
                          transponders=transponders,
                          carriers=carriers,
-                         ground_stations=ground_stations)
+                         ground_stations=ground_stations,
+                         reception_simple=reception_simple,
+                         reception_complex=reception_complex)
 
 
 @app.route('/api/transponders')
@@ -1232,7 +1251,7 @@ calculate_html = """<!DOCTYPE html>
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    displayResults(data.results);
+                    displayResults(data.results, data.calculation_id);
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -1243,7 +1262,7 @@ calculate_html = """<!DOCTYPE html>
             });
         });
 
-        function displayResults(results) {
+        function displayResults(results, calcId) {
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = `
                 <table class="table table-striped">
@@ -1266,7 +1285,7 @@ calculate_html = """<!DOCTYPE html>
                     <tr><td>G/T</td><td>${results.gt_value?.toFixed(2) || 'N/A'} dB/K</td></tr>
                 </table>
                 <div class="mt-3">
-                    <a href="/calculations/${data.calculation_id}" class="btn btn-info">View Details</a>
+                    ${calcId ? `<a href="/calculations/${calcId}" class="btn btn-info">View Details</a>` : ''}
                 </div>
             `;
         }
@@ -1298,4 +1317,4 @@ if __name__ == '__main__':
     init_db('satlink.db')
 
     # Run the app
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)

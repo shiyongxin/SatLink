@@ -397,6 +397,56 @@ class SatLinkDatabaseUser:
 
             return transponders
 
+    def update_transponder(self, tp_id: int, **kwargs) -> bool:
+        """
+        Update transponder
+
+        Parameters
+        ----------
+        tp_id : int
+            Transponder ID
+        **kwargs
+            Fields to update (name, freq, freq_band, eirp_max, b_transp,
+            back_off, contorno, polarization, satellite_id, is_shared)
+
+        Returns
+        -------
+        bool
+            True if successful
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Build UPDATE query dynamically
+            allowed_fields = ['name', 'freq', 'freq_band', 'eirp_max', 'b_transp',
+                            'back_off', 'contorno', 'polarization', 'satellite_id',
+                            'is_shared']
+            updates = []
+            params = []
+
+            for field in allowed_fields:
+                if field in kwargs:
+                    updates.append(f"{field} = ?")
+                    params.append(kwargs[field])
+
+            if not updates:
+                return False
+
+            params.append(tp_id)
+            query = f"UPDATE transponders SET {', '.join(updates)} WHERE id = ?"
+
+            cursor.execute(query, params)
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def make_transponder_public(self, tp_id: int) -> bool:
+        """Make transponder public"""
+        return self.update_transponder(tp_id, is_shared=True)
+
+    def make_transponder_private(self, tp_id: int) -> bool:
+        """Make transponder private"""
+        return self.update_transponder(tp_id, is_shared=False)
+
     # =========================================================================
     # Carriers
     # =========================================================================
@@ -508,6 +558,56 @@ class SatLinkDatabaseUser:
                 carriers.append(car)
 
             return carriers
+
+    def update_carrier(self, car_id: int, **kwargs) -> bool:
+        """
+        Update carrier
+
+        Parameters
+        ----------
+        car_id : int
+            Carrier ID
+        **kwargs
+            Fields to update (name, modcod, modulation, fec, roll_off, b_util,
+            snr_threshold, spectral_efficiency, standard, description, is_shared)
+
+        Returns
+        -------
+        bool
+            True if successful
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Build UPDATE query dynamically
+            allowed_fields = ['name', 'modcod', 'modulation', 'fec', 'roll_off',
+                            'b_util', 'snr_threshold', 'spectral_efficiency',
+                            'standard', 'description', 'is_shared']
+            updates = []
+            params = []
+
+            for field in allowed_fields:
+                if field in kwargs:
+                    updates.append(f"{field} = ?")
+                    params.append(kwargs[field])
+
+            if not updates:
+                return False
+
+            params.append(car_id)
+            query = f"UPDATE carriers SET {', '.join(updates)} WHERE id = ?"
+
+            cursor.execute(query, params)
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def make_carrier_public(self, car_id: int) -> bool:
+        """Make carrier public"""
+        return self.update_carrier(car_id, is_shared=True)
+
+    def make_carrier_private(self, car_id: int) -> bool:
+        """Make carrier private"""
+        return self.update_carrier(car_id, is_shared=False)
 
     # =========================================================================
     # Ground Stations
@@ -632,12 +732,61 @@ class SatLinkDatabaseUser:
 
             return ground_stations
 
+    def update_ground_station(self, gs_id: int, **kwargs) -> bool:
+        """
+        Update ground station
+
+        Parameters
+        ----------
+        gs_id : int
+            Ground station ID
+        **kwargs
+            Fields to update (name, site_lat, site_long, site_name, altitude,
+            country, region, city, climate_zone, itu_region, description, is_shared)
+
+        Returns
+        -------
+        bool
+            True if successful
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Build UPDATE query dynamically
+            allowed_fields = ['name', 'site_lat', 'site_long', 'site_name', 'altitude',
+                            'country', 'region', 'city', 'climate_zone', 'itu_region',
+                            'description', 'is_shared']
+            updates = []
+            params = []
+
+            for field in allowed_fields:
+                if field in kwargs:
+                    updates.append(f"{field} = ?")
+                    params.append(kwargs[field])
+
+            if not updates:
+                return False
+
+            params.append(gs_id)
+            query = f"UPDATE ground_stations SET {', '.join(updates)} WHERE id = ?"
+
+            cursor.execute(query, params)
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def make_ground_station_public(self, gs_id: int) -> bool:
+        """Make ground station public"""
+        return self.update_ground_station(gs_id, is_shared=True)
+
+    def make_ground_station_private(self, gs_id: int) -> bool:
+        """Make ground station private"""
+        return self.update_ground_station(gs_id, is_shared=False)
+
     # =========================================================================
     # Reception Systems - Complex
     # =========================================================================
 
-    def add_reception_complex(self, name: str, ground_station_id: int,
-                             ant_size: float, ant_eff: float, lnb_gain: float,
+    def add_reception_complex(self, name: str, ant_size: float, ant_eff: float, lnb_gain: float,
                              lnb_temp: float, coupling_loss: float = 0,
                              cable_loss: float = 0, polarization_loss: float = 3,
                              max_depoint: float = 0, manufacturer: str = None,
@@ -650,8 +799,6 @@ class SatLinkDatabaseUser:
         ----------
         name : str
             System name
-        ground_station_id : int
-            Ground station ID
         ant_size : float
             Antenna size (m)
         ant_eff : float
@@ -689,11 +836,11 @@ class SatLinkDatabaseUser:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO reception_complex
-                (name, ground_station_id, ant_size, ant_eff, lnb_gain, lnb_temp,
+                (name, ant_size, ant_eff, lnb_gain, lnb_temp,
                  coupling_loss, cable_loss, polarization_loss, max_depoint,
                  manufacturer, model, description, user_id, is_shared)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (name, ground_station_id, ant_size, ant_eff, lnb_gain, lnb_temp,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (name, ant_size, ant_eff, lnb_gain, lnb_temp,
                   coupling_loss, cable_loss, polarization_loss, max_depoint,
                   manufacturer, model, description,
                   self.current_user_id, is_shared))
@@ -704,8 +851,7 @@ class SatLinkDatabaseUser:
     # Reception Systems - Simple
     # =========================================================================
 
-    def add_reception_simple(self, name: str, ground_station_id: int,
-                           gt_value: float, depoint_loss: float = 0,
+    def add_reception_simple(self, name: str, gt_value: float, depoint_loss: float = 0,
                            frequency: float = None, measurement_method: str = None,
                            manufacturer: str = None, model: str = None,
                            description: str = '', is_shared: bool = False) -> int:
@@ -716,8 +862,6 @@ class SatLinkDatabaseUser:
         ----------
         name : str
             System name
-        ground_station_id : int
-            Ground station ID
         gt_value : float
             G/T value (dB/K)
         depoint_loss : float
@@ -747,14 +891,242 @@ class SatLinkDatabaseUser:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO reception_simple
-                (name, ground_station_id, gt_value, depoint_loss, frequency,
+                (name, gt_value, depoint_loss, frequency,
                  measurement_method, manufacturer, model, description, user_id, is_shared)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (name, ground_station_id, gt_value, depoint_loss, frequency,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (name, gt_value, depoint_loss, frequency,
                   measurement_method, manufacturer, model, description,
                   self.current_user_id, is_shared))
             conn.commit()
             return cursor.lastrowid
+
+    def list_reception_complex(self, user_id: int = None, include_shared: bool = True) -> List[Dict]:
+        """
+        List complex reception systems
+
+        Parameters
+        ----------
+        user_id : int, optional
+            User ID to filter by
+        include_shared : bool
+            Whether to include shared items
+
+        Returns
+        -------
+        list
+            List of complex reception systems
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            if user_id is None:
+                user_id = self.current_user_id
+
+            if user_id and include_shared:
+                cursor.execute("""
+                    SELECT rc.*, u.username as owner
+                    FROM reception_complex rc
+                    JOIN users u ON rc.user_id = u.id
+                    WHERE rc.user_id = ? OR rc.is_shared = 1
+                    ORDER BY rc.name
+                """, (user_id,))
+            elif user_id:
+                cursor.execute("""
+                    SELECT rc.*, u.username as owner
+                    FROM reception_complex rc
+                    JOIN users u ON rc.user_id = u.id
+                    WHERE rc.user_id = ?
+                    ORDER BY rc.name
+                """, (user_id,))
+            else:
+                cursor.execute("""
+                    SELECT rc.*, u.username as owner
+                    FROM reception_complex rc
+                    JOIN users u ON rc.user_id = u.id
+                    WHERE rc.is_shared = 1
+                    ORDER BY rc.name
+                """)
+
+            return [dict(row) for row in cursor.fetchall()]
+
+    def list_reception_simple(self, user_id: int = None, include_shared: bool = True) -> List[Dict]:
+        """
+        List simple reception systems
+
+        Parameters
+        ----------
+        user_id : int, optional
+            User ID to filter by
+        include_shared : bool
+            Whether to include shared items
+
+        Returns
+        -------
+        list
+            List of simple reception systems
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            if user_id is None:
+                user_id = self.current_user_id
+
+            if user_id and include_shared:
+                cursor.execute("""
+                    SELECT rs.*, u.username as owner
+                    FROM reception_simple rs
+                    JOIN users u ON rs.user_id = u.id
+                    WHERE rs.user_id = ? OR rs.is_shared = 1
+                    ORDER BY rs.name
+                """, (user_id,))
+            elif user_id:
+                cursor.execute("""
+                    SELECT rs.*, u.username as owner
+                    FROM reception_simple rs
+                    JOIN users u ON rs.user_id = u.id
+                    WHERE rs.user_id = ?
+                    ORDER BY rs.name
+                """, (user_id,))
+            else:
+                cursor.execute("""
+                    SELECT rs.*, u.username as owner
+                    FROM reception_simple rs
+                    JOIN users u ON rs.user_id = u.id
+                    WHERE rs.is_shared = 1
+                    ORDER BY rs.name
+                """)
+
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_reception_complex(self, rc_id: int, **kwargs) -> bool:
+        """
+        Update complex reception system
+
+        Parameters
+        ----------
+        rc_id : int
+            Reception system ID
+        **kwargs
+            Fields to update (name, ant_size, ant_eff,
+            lnb_gain, lnb_temp, coupling_loss, cable_loss, polarization_loss,
+            max_depoint, manufacturer, model, description, is_shared)
+
+        Returns
+        -------
+        bool
+            True if successful
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            allowed_fields = ['name', 'ant_size', 'ant_eff',
+                            'lnb_gain', 'lnb_temp', 'coupling_loss', 'cable_loss',
+                            'polarization_loss', 'max_depoint', 'manufacturer',
+                            'model', 'description', 'is_shared']
+            updates = []
+            params = []
+
+            for field in allowed_fields:
+                if field in kwargs:
+                    updates.append(f"{field} = ?")
+                    params.append(kwargs[field])
+
+            if not updates:
+                return False
+
+            params.append(rc_id)
+            query = f"UPDATE reception_complex SET {', '.join(updates)} WHERE id = ?"
+
+            cursor.execute(query, params)
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def update_reception_simple(self, rs_id: int, **kwargs) -> bool:
+        """
+        Update simple reception system
+
+        Parameters
+        ----------
+        rs_id : int
+            Reception system ID
+        **kwargs
+            Fields to update (name, gt_value, depoint_loss,
+            frequency, measurement_method, manufacturer, model, description, is_shared)
+
+        Returns
+        -------
+        bool
+            True if successful
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            allowed_fields = ['name', 'gt_value', 'depoint_loss',
+                            'frequency', 'measurement_method', 'manufacturer',
+                            'model', 'description', 'is_shared']
+            updates = []
+            params = []
+
+            for field in allowed_fields:
+                if field in kwargs:
+                    updates.append(f"{field} = ?")
+                    params.append(kwargs[field])
+
+            if not updates:
+                return False
+
+            params.append(rs_id)
+            query = f"UPDATE reception_simple SET {', '.join(updates)} WHERE id = ?"
+
+            cursor.execute(query, params)
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def make_reception_complex_public(self, rc_id: int) -> bool:
+        """Make complex reception system public"""
+        return self.update_reception_complex(rc_id, is_shared=True)
+
+    def make_reception_complex_private(self, rc_id: int) -> bool:
+        """Make complex reception system private"""
+        return self.update_reception_complex(rc_id, is_shared=False)
+
+    def make_reception_simple_public(self, rs_id: int) -> bool:
+        """Make simple reception system public"""
+        return self.update_reception_simple(rs_id, is_shared=True)
+
+    def make_reception_simple_private(self, rs_id: int) -> bool:
+        """Make simple reception system private"""
+        return self.update_reception_simple(rs_id, is_shared=False)
+
+    def get_public_reception_complex(self) -> List[Dict]:
+        """Get all publicly available complex reception systems"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT rc.*, u.username as owner
+                FROM reception_complex rc
+                JOIN users u ON rc.user_id = u.id
+                WHERE rc.is_shared = 1
+                ORDER BY rc.name
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_public_reception_simple(self) -> List[Dict]:
+        """Get all publicly available simple reception systems"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT rs.*, u.username as owner
+                FROM reception_simple rs
+                JOIN users u ON rs.user_id = u.id
+                WHERE rs.is_shared = 1
+                ORDER BY rs.name
+            """)
+            return [dict(row) for row in cursor.fetchall()]
 
     # =========================================================================
     # Link Calculations
