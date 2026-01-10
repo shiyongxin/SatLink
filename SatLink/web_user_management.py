@@ -270,6 +270,61 @@ def toggle_transponder_share(tp_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@user_management_bp.route('/transponders/<int:tp_id>/edit', methods=['POST'])
+def edit_transponder(tp_id):
+    """Edit transponder"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('user_management.manage_transponders'))
+
+    # Check ownership
+    transponder = None
+    for tp in db.list_transponders():
+        if tp['id'] == tp_id:
+            transponder = tp
+            break
+
+    if not transponder or transponder['user_id'] != db.current_user_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('user_management.manage_transponders'))
+
+    try:
+        name = request.form['name']
+        freq = float(request.form['freq'])
+        freq_band = request.form.get('freq_band')
+        eirp_max = float(request.form.get('eirp_max', 0))
+        b_transp = float(request.form.get('b_transp', 36))
+        back_off = float(request.form.get('back_off', 0))
+        contorno = float(request.form.get('contorno', 0))
+        polarization = request.form.get('polarization')
+        satellite_id = int(request.form['satellite_id'])
+        is_shared = 'is_shared' in request.form
+
+        success = db.update_transponder(
+            tp_id,
+            name=name,
+            freq=freq,
+            freq_band=freq_band,
+            eirp_max=eirp_max,
+            b_transp=b_transp,
+            back_off=back_off,
+            contorno=contorno,
+            polarization=polarization,
+            satellite_id=satellite_id,
+            is_shared=is_shared
+        )
+
+        if success:
+            flash('Transponder updated successfully!', 'success')
+        else:
+            flash('Failed to update transponder.', 'error')
+    except Exception as e:
+        flash(f'Error updating: {str(e)}', 'error')
+
+    return redirect(url_for('user_management.manage_transponders'))
+
+
 @user_management_bp.route('/transponders/<int:tp_id>/delete', methods=['POST'])
 def delete_transponder(tp_id):
     """Delete transponder"""
@@ -394,6 +449,63 @@ def toggle_carrier_share(car_id):
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@user_management_bp.route('/carriers/<int:car_id>/edit', methods=['POST'])
+def edit_carrier(car_id):
+    """Edit carrier configuration"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('user_management.manage_carriers'))
+
+    # Check ownership
+    carrier = None
+    for car in db.list_carriers():
+        if car['id'] == car_id:
+            carrier = car
+            break
+
+    if not carrier or carrier['user_id'] != db.current_user_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('user_management.manage_carriers'))
+
+    try:
+        name = request.form['name']
+        modcod = request.form['modcod']
+        modulation = request.form['modulation']
+        fec = request.form['fec']
+        roll_off = float(request.form['roll_off'])
+        b_util = float(request.form.get('b_util', 36))
+        snr_threshold = float(request.form['snr_threshold']) if request.form.get('snr_threshold') else None
+        spectral_efficiency = float(request.form['spectral_efficiency']) if request.form.get('spectral_efficiency') else None
+        standard = request.form.get('standard')
+        description = request.form.get('description', '')
+        is_shared = 'is_shared' in request.form
+
+        success = db.update_carrier(
+            car_id,
+            name=name,
+            modcod=modcod,
+            modulation=modulation,
+            fec=fec,
+            roll_off=roll_off,
+            b_util=b_util,
+            snr_threshold=snr_threshold,
+            spectral_efficiency=spectral_efficiency,
+            standard=standard,
+            description=description,
+            is_shared=is_shared
+        )
+
+        if success:
+            flash('Carrier configuration updated successfully!', 'success')
+        else:
+            flash('Failed to update carrier.', 'error')
+    except Exception as e:
+        flash(f'Error updating: {str(e)}', 'error')
+
+    return redirect(url_for('user_management.manage_carriers'))
 
 
 @user_management_bp.route('/carriers/<int:car_id>/delete', methods=['POST'])
@@ -525,6 +637,65 @@ def toggle_ground_station_share(gs_id):
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@user_management_bp.route('/ground_stations/<int:gs_id>/edit', methods=['POST'])
+def edit_ground_station(gs_id):
+    """Edit ground station"""
+    db = get_db()
+    if not db:
+        flash('Database not initialized', 'error')
+        return redirect(url_for('user_management.manage_ground_stations'))
+
+    # Check ownership
+    station = None
+    for gs in db.list_ground_stations():
+        if gs['id'] == gs_id:
+            station = gs
+            break
+
+    if not station or station['user_id'] != db.current_user_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('user_management.manage_ground_stations'))
+
+    try:
+        name = request.form['name']
+        site_lat = float(request.form['site_lat'])
+        site_long = float(request.form['site_long'])
+        site_name = request.form.get('site_name')
+        altitude = float(request.form.get('altitude', 0))
+        country = request.form.get('country')
+        region = request.form.get('region')
+        city = request.form.get('city')
+        climate_zone = request.form.get('climate_zone')
+        itu_region = request.form.get('itu_region')
+        description = request.form.get('description', '')
+        is_shared = 'is_shared' in request.form
+
+        success = db.update_ground_station(
+            gs_id,
+            name=name,
+            site_lat=site_lat,
+            site_long=site_long,
+            site_name=site_name,
+            altitude=altitude,
+            country=country,
+            region=region,
+            city=city,
+            climate_zone=climate_zone,
+            itu_region=itu_region,
+            description=description,
+            is_shared=is_shared
+        )
+
+        if success:
+            flash('Ground station updated successfully!', 'success')
+        else:
+            flash('Failed to update ground station.', 'error')
+    except Exception as e:
+        flash(f'Error updating: {str(e)}', 'error')
+
+    return redirect(url_for('user_management.manage_ground_stations'))
 
 
 @user_management_bp.route('/ground_stations/<int:gs_id>/delete', methods=['POST'])
@@ -969,6 +1140,49 @@ def api_get_transponders():
     return jsonify(transponders)
 
 
+@user_management_bp.route('/api/transponders/add', methods=['POST'])
+@login_required
+def api_add_transponder():
+    """API to add a new transponder via AJAX"""
+    db = get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['name', 'freq', 'eirp_max', 'b_transp', 'satellite_id']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+
+        # Add transponder
+        tp_id = db.add_transponder(
+            name=data['name'],
+            freq=float(data['freq']),
+            band=data.get('freq_band', ''),
+            eirp_max=float(data['eirp_max']),
+            b_transp=float(data['b_transp']),
+            back_off=float(data.get('back_off', 0)),
+            polarization=data.get('polarization', ''),
+            satellite_id=int(data['satellite_id']),
+            is_shared=data.get('is_shared', False)
+        )
+
+        if tp_id:
+            return jsonify({
+                'success': True,
+                'transponder_id': tp_id,
+                'message': 'Transponder added successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to add transponder'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @user_management_bp.route('/api/reception_systems')
 def api_get_reception_systems():
     """API to get reception systems by type"""
@@ -995,3 +1209,207 @@ def api_get_reception_systems():
                 })
 
     return jsonify(systems)
+
+
+@user_management_bp.route('/api/satellites/add', methods=['POST'])
+@login_required
+def api_add_satellite():
+    """API to add a new satellite via AJAX"""
+    db = get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['name', 'sat_long']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+
+        # Add satellite
+        sat_id = db.add_satellite_position(
+            name=data['name'],
+            sat_long=float(data['sat_long']),
+            sat_lat=float(data.get('sat_lat', 0)),
+            altitude=float(data.get('altitude', 35786)),
+            orbit_type=data.get('orbit_type', 'GEO'),
+            is_shared=data.get('is_shared', False)
+        )
+
+        if sat_id:
+            return jsonify({
+                'success': True,
+                'satellite_id': sat_id,
+                'message': 'Satellite added successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to add satellite'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@user_management_bp.route('/api/carriers/add', methods=['POST'])
+@login_required
+def api_add_carrier():
+    """API to add a new carrier via AJAX"""
+    db = get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        if 'name' not in data or not data['name']:
+            return jsonify({'success': False, 'error': 'Missing required field: name'}), 400
+
+        # Add carrier
+        car_id = db.add_carrier(
+            name=data['name'],
+            modcod=data.get('modcod', data['name']),
+            modulation=data.get('modulation', ''),
+            fec=data.get('fec', ''),
+            roll_off=float(data.get('roll_off', 0)),
+            spectral_efficiency=float(data.get('spectral_efficiency', 0)),
+            is_shared=data.get('is_shared', False)
+        )
+
+        if car_id:
+            return jsonify({
+                'success': True,
+                'carrier_id': car_id,
+                'message': 'Carrier added successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to add carrier'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@user_management_bp.route('/api/ground_stations/add', methods=['POST'])
+@login_required
+def api_add_ground_station():
+    """API to add a new ground station via AJAX"""
+    db = get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['name', 'site_lat', 'site_long']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+
+        # Add ground station
+        gs_id = db.add_ground_station(
+            name=data['name'],
+            site_lat=float(data['site_lat']),
+            site_long=float(data['site_long']),
+            altitude=float(data.get('altitude', 0)),
+            city=data.get('city', ''),
+            country=data.get('country', ''),
+            climate_zone=data.get('climate_zone', ''),
+            is_shared=data.get('is_shared', False)
+        )
+
+        if gs_id:
+            return jsonify({
+                'success': True,
+                'ground_station_id': gs_id,
+                'message': 'Ground station added successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to add ground station'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@user_management_bp.route('/api/reception_complex/add', methods=['POST'])
+@login_required
+def api_add_reception_complex():
+    """API to add a new complex reception system via AJAX"""
+    db = get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['name', 'ground_station_id', 'ant_size', 'ant_eff', 'lnb_gain', 'lnb_temp']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+
+        # Add complex reception system
+        rec_id = db.add_reception_complex(
+            name=data['name'],
+            ground_station_id=int(data['ground_station_id']),
+            ant_size=float(data['ant_size']),
+            ant_eff=float(data['ant_eff']),
+            coupling_loss=float(data.get('coupling_loss', 0)),
+            polarization_loss=float(data.get('polarization_loss', 0)),
+            lnb_gain=float(data['lnb_gain']),
+            lnb_temp=float(data['lnb_temp']),
+            cable_loss=float(data.get('cable_loss', 0)),
+            is_shared=data.get('is_shared', False)
+        )
+
+        if rec_id:
+            return jsonify({
+                'success': True,
+                'reception_id': rec_id,
+                'message': 'Reception system added successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to add reception system'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@user_management_bp.route('/api/reception_simple/add', methods=['POST'])
+@login_required
+def api_add_reception_simple():
+    """API to add a new simple reception system via AJAX"""
+    db = get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not initialized'}), 500
+
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['name', 'gt_value', 'frequency', 'ground_station_id']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+
+        # Add simple reception system
+        rec_id = db.add_reception_simple(
+            name=data['name'],
+            ground_station_id=int(data['ground_station_id']),
+            gt_value=float(data['gt_value']),
+            frequency=float(data['frequency']),
+            is_shared=data.get('is_shared', False)
+        )
+
+        if rec_id:
+            return jsonify({
+                'success': True,
+                'reception_id': rec_id,
+                'message': 'Reception system added successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to add reception system'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

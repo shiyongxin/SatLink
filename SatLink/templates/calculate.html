@@ -570,32 +570,486 @@
             `;
         }
 
-        // Add New parameter functions - redirect to management pages
+        // Add New parameter functions - show modals
         function addNewSatellite() {
-            window.open('/manage/satellites', '_blank');
+            const modal = new bootstrap.Modal(document.getElementById('addSatelliteModal'));
+            modal.show();
         }
 
         function addNewTransponder() {
-            window.open('/manage/transponders', '_blank');
+            // Populate satellite dropdown
+            const satSelect = document.getElementById('transponderSatelliteSelect');
+            const mainSatSelect = document.getElementById('satellite');
+            satSelect.innerHTML = mainSatSelect.innerHTML;
+
+            const modal = new bootstrap.Modal(document.getElementById('addTransponderModal'));
+            modal.show();
         }
 
         function addNewCarrier() {
-            window.open('/manage/carriers', '_blank');
+            const modal = new bootstrap.Modal(document.getElementById('addCarrierModal'));
+            modal.show();
         }
 
         function addNewGroundStation() {
-            window.open('/manage/ground_stations', '_blank');
+            const modal = new bootstrap.Modal(document.getElementById('addGroundStationModal'));
+            modal.show();
         }
 
         function addNewReceptionSystem() {
             if (currentReceptionType === 'complex') {
-                window.open('/manage/reception_complex', '_blank');
+                // Populate ground station dropdown
+                const gsSelect = document.getElementById('receptionComplexGroundStation');
+                const mainGsSelect = document.getElementById('ground_station');
+                gsSelect.innerHTML = mainGsSelect.innerHTML;
+
+                const modal = new bootstrap.Modal(document.getElementById('addReceptionComplexModal'));
+                modal.show();
             } else if (currentReceptionType === 'simple') {
-                window.open('/manage/reception_simple', '_blank');
+                // Populate ground station dropdown
+                const gsSelect = document.getElementById('receptionSimpleGroundStation');
+                const mainGsSelect = document.getElementById('ground_station');
+                gsSelect.innerHTML = mainGsSelect.innerHTML;
+
+                const modal = new bootstrap.Modal(document.getElementById('addReceptionSimpleModal'));
+                modal.show();
             } else {
                 alert('Please select a reception system type first');
             }
         }
+
+        // Handle form submissions for adding new components
+        function setupAddForm(formId, apiUrl, successCallback) {
+            const form = document.getElementById(formId);
+            if (!form) return;
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const formData = new FormData(this);
+                const data = Object.fromEntries(formData);
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Close the modal
+                        const modalEl = this.closest('.modal');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        modal.hide();
+
+                        // Reset form
+                        form.reset();
+
+                        // Show success message
+                        alert('Added successfully!');
+
+                        // Execute success callback to update UI
+                        if (successCallback) successCallback(result);
+                    } else {
+                        alert('Error: ' + (result.error || 'Failed to add'));
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Network error: ' + error.message);
+                }
+            });
+        }
+
+        // Setup all add forms
+        document.addEventListener('DOMContentLoaded', function() {
+            // Satellite form
+            setupAddForm('addSatelliteForm', '/api/satellites/add', function(result) {
+                // Add new option to satellite select
+                const satSelect = document.getElementById('satellite');
+                const newOption = document.createElement('option');
+                newOption.value = result.satellite_id;
+                newOption.textContent = document.getElementById('addSatelliteForm').querySelector('[name="name"]').value;
+                satSelect.appendChild(newOption);
+                satSelect.value = result.satellite_id;
+                satSelect.dispatchEvent(new Event('change'));
+            });
+
+            // Transponder form
+            setupAddForm('addTransponderForm', '/api/transponders/add', function(result) {
+                // Refresh transponder list
+                const satId = document.getElementById('satellite').value;
+                if (satId) {
+                    const tpSelect = document.getElementById('transponder');
+                    tpSelect.innerHTML = '<option value="">Select Transponder</option>';
+                    fetch(`/api/transponders?satellite_id=${satId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            data.forEach(tp => {
+                                const option = document.createElement('option');
+                                option.value = tp.id;
+                                option.textContent = `${tp.name} (${tp.freq} GHz)`;
+                                if (tp.id === result.transponder_id) option.selected = true;
+                                tpSelect.appendChild(option);
+                            });
+                            tpSelect.dispatchEvent(new Event('change'));
+                        });
+                }
+            });
+
+            // Carrier form
+            setupAddForm('addCarrierForm', '/api/carriers/add', function(result) {
+                // Add new option to carrier select
+                const carSelect = document.getElementById('carrier');
+                const formName = document.getElementById('addCarrierForm').querySelector('[name="name"]').value;
+                const formModcod = document.getElementById('addCarrierForm').querySelector('[name="modcod"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.carrier_id;
+                newOption.textContent = `${formName} (${formModcod})`;
+                carSelect.appendChild(newOption);
+                carSelect.value = result.carrier_id;
+                carSelect.dispatchEvent(new Event('change'));
+            });
+
+            // Ground Station form
+            setupAddForm('addGroundStationForm', '/api/ground_stations/add', function(result) {
+                // Add new option to ground station select
+                const gsSelect = document.getElementById('ground_station');
+                const formName = document.getElementById('addGroundStationForm').querySelector('[name="name"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.ground_station_id;
+                newOption.textContent = formName;
+                gsSelect.appendChild(newOption);
+                gsSelect.value = result.ground_station_id;
+                gsSelect.dispatchEvent(new Event('change'));
+            });
+
+            // Reception Complex form
+            setupAddForm('addReceptionComplexForm', '/api/reception_complex/add', function(result) {
+                // Refresh reception system list
+                const recSelect = document.getElementById('reception_id');
+                const formName = document.getElementById('addReceptionComplexForm').querySelector('[name="name"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.reception_id;
+                newOption.textContent = formName;
+                recSelect.appendChild(newOption);
+                recSelect.value = result.reception_id;
+                recSelect.dispatchEvent(new Event('change'));
+            });
+
+            // Reception Simple form
+            setupAddForm('addReceptionSimpleForm', '/api/reception_simple/add', function(result) {
+                // Refresh reception system list
+                const recSelect = document.getElementById('reception_id');
+                const formName = document.getElementById('addReceptionSimpleForm').querySelector('[name="name"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.reception_id;
+                newOption.textContent = formName;
+                recSelect.appendChild(newOption);
+                recSelect.value = result.reception_id;
+                recSelect.dispatchEvent(new Event('change'));
+            });
+        });
     </script>
+
+    <!-- Add Satellite Modal -->
+    <div class="modal fade" id="addSatelliteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Add New Satellite</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addSatelliteForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Longitude (degrees) *</label>
+                            <input type="number" step="0.01" class="form-control" name="sat_long" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Latitude (degrees)</label>
+                            <input type="number" step="0.01" class="form-control" name="sat_lat" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Altitude (km)</label>
+                            <input type="number" step="0.1" class="form-control" name="altitude" value="35786">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Orbit Type</label>
+                            <select class="form-select" name="orbit_type">
+                                <option value="GEO">GEO</option>
+                                <option value="MEO">MEO</option>
+                                <option value="LEO">LEO</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Satellite</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Transponder Modal -->
+    <div class="modal fade" id="addTransponderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">Add New Transponder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addTransponderForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Frequency (GHz) *</label>
+                            <input type="number" step="0.001" class="form-control" name="freq" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Frequency Band</label>
+                            <select class="form-select" name="freq_band">
+                                <option value="">Select...</option>
+                                <option value="C">C</option>
+                                <option value="Ku">Ku</option>
+                                <option value="Ka">Ka</option>
+                                <option value="X">X</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">EIRP Max (dBW) *</label>
+                            <input type="number" step="0.1" class="form-control" name="eirp_max" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bandwidth (MHz) *</label>
+                            <input type="number" step="0.1" class="form-control" name="b_transp" value="36" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Back Off (dB)</label>
+                            <input type="number" step="0.1" class="form-control" name="back_off" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Polarization</label>
+                            <select class="form-select" name="polarization">
+                                <option value="">Select...</option>
+                                <option value="Linear">Linear</option>
+                                <option value="Circular">Circular</option>
+                                <option value="Horizontal">Horizontal</option>
+                                <option value="Vertical">Vertical</option>
+                                <option value="RHCP">RHCP</option>
+                                <option value="LHCP">LHCP</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Satellite *</label>
+                            <select class="form-select" name="satellite_id" id="transponderSatelliteSelect" required>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success">Add Transponder</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Carrier Modal -->
+    <div class="modal fade" id="addCarrierModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">Add New Carrier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addCarrierForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">MODCOD *</label>
+                            <input type="text" class="form-control" name="modcod" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Modulation</label>
+                            <input type="text" class="form-control" name="modulation">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">FEC</label>
+                            <input type="text" class="form-control" name="fec">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Roll-off</label>
+                            <input type="number" step="0.01" class="form-control" name="roll_off" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Spectral Efficiency (bit/s/Hz)</label>
+                            <input type="number" step="0.01" class="form-control" name="spectral_efficiency" value="0">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-info">Add Carrier</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Ground Station Modal -->
+    <div class="modal fade" id="addGroundStationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">Add New Ground Station</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addGroundStationForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Latitude (degrees) *</label>
+                            <input type="number" step="0.01" class="form-control" name="site_lat" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Longitude (degrees) *</label>
+                            <input type="number" step="0.01" class="form-control" name="site_long" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Altitude (m)</label>
+                            <input type="number" step="0.1" class="form-control" name="altitude" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">City</label>
+                            <input type="text" class="form-control" name="city">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Country</label>
+                            <input type="text" class="form-control" name="country">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Climate Zone</label>
+                            <input type="text" class="form-control" name="climate_zone">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning">Add Ground Station</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Reception Complex Modal -->
+    <div class="modal fade" id="addReceptionComplexModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Add Complex Reception System</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addReceptionComplexForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Ground Station *</label>
+                            <select class="form-select" name="ground_station_id" id="receptionComplexGroundStation" required>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Antenna Size (m) *</label>
+                            <input type="number" step="0.01" class="form-control" name="ant_size" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Antenna Efficiency (0-1) *</label>
+                            <input type="number" step="0.01" min="0" max="1" class="form-control" name="ant_eff" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Coupling Loss (dB)</label>
+                            <input type="number" step="0.1" class="form-control" name="coupling_loss" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Polarization Loss (dB)</label>
+                            <input type="number" step="0.1" class="form-control" name="polarization_loss" value="0">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">LNB Gain (dB) *</label>
+                            <input type="number" step="0.1" class="form-control" name="lnb_gain" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">LNB Noise Temperature (K) *</label>
+                            <input type="number" step="1" class="form-control" name="lnb_temp" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Cable Loss (dB)</label>
+                            <input type="number" step="0.1" class="form-control" name="cable_loss" value="0">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Add Reception System</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Reception Simple Modal -->
+    <div class="modal fade" id="addReceptionSimpleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title">Add Simple Reception System</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addReceptionSimpleForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Ground Station *</label>
+                            <select class="form-select" name="ground_station_id" id="receptionSimpleGroundStation" required>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">G/T Value (dB/K) *</label>
+                            <input type="number" step="0.1" class="form-control" name="gt_value" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Reference Frequency (GHz) *</label>
+                            <input type="number" step="0.001" class="form-control" name="frequency" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-secondary">Add Reception System</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
