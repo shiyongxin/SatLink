@@ -26,7 +26,7 @@
         <h1>Welcome, {{ user_info.username }}!</h1>
 
         <div class="row mt-4">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card bg-primary text-white">
                     <div class="card-body">
                         <h5 class="card-title">Satellites</h5>
@@ -34,7 +34,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card bg-success text-white">
                     <div class="card-body">
                         <h5 class="card-title">Transponders</h5>
@@ -42,7 +42,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card bg-info text-white">
                     <div class="card-body">
                         <h5 class="card-title">Carriers</h5>
@@ -50,8 +50,24 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="card bg-warning text-white">
+            <div class="col-md-2">
+                <div class="card bg-warning text-dark">
+                    <div class="card-body">
+                        <h5 class="card-title">Ground Stations</h5>
+                        <h3>{{ stats.ground_stations }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-danger text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Reception Systems</h5>
+                        <h3>{{ stats.reception_systems }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-secondary text-white">
                     <div class="card-body">
                         <h5 class="card-title">Calculations</h5>
                         <h3>{{ stats.link_calculations }}</h3>
@@ -93,6 +109,69 @@
                             <a href="/manage" class="btn btn-secondary">Manage Items</a>
                             <a href="/public" class="btn btn-info">Browse Public Items</a>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Ground Stations</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if ground_stations %}
+                            <div class="list-group">
+                                {% for gs in ground_stations[:5] %}
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1">{{ gs.name }}</h6>
+                                        <small class="text-muted">
+                                            {{ gs.city }}, {{ gs.country }} ({{ gs.site_lat }}, {{ gs.site_long }})
+                                        </small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if ground_stations|length > 5 %}
+                                <small class="text-muted">And {{ ground_stations|length - 5 }} more...</small>
+                            {% endif %}
+                        {% else %}
+                            <p>No ground stations yet. <a href="/manage/ground_stations">Add one</a>.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Reception Systems</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if reception_complex or reception_simple %}
+                            <div class="list-group">
+                                {% for rec in reception_complex[:3] %}
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1">{{ rec.name }} <span class="badge bg-info">Complex</span></h6>
+                                        <small class="text-muted">
+                                            Antenna: {{ rec.ant_size }}m, G/T: {{ rec.calculated_gt }} dB/K
+                                        </small>
+                                    </div>
+                                {% endfor %}
+                                {% for rec in reception_simple[:3] %}
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1">{{ rec.name }} <span class="badge bg-secondary">Simple</span></h6>
+                                        <small class="text-muted">
+                                            G/T: {{ rec.gt_value }} dB/K @ {{ rec.frequency }} GHz
+                                        </small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if (reception_complex|length + reception_simple|length) > 6 %}
+                                <small class="text-muted">And {{ (reception_complex|length + reception_simple|length) - 6 }} more...</small>
+                            {% endif %}
+                        {% else %}
+                            <p>No reception systems yet. <a href="/manage/reception_systems">Add one</a>.</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
