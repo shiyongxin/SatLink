@@ -689,6 +689,141 @@ def api_reception_systems():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/satellite/<int:id>')
+@login_required
+def api_satellite_detail(id):
+    """API endpoint to get satellite details"""
+    try:
+        satellites = db.list_satellite_positions()
+        sat = next((s for s in satellites if s['id'] == id), None)
+        if sat:
+            return jsonify({
+                'id': sat['id'],
+                'name': sat['name'],
+                'sat_long': sat['sat_long'],
+                'sat_lat': sat.get('sat_lat', 0),
+                'altitude': sat.get('altitude', 35786),
+                'orbit_type': sat.get('orbit_type', 'GEO')
+            })
+        return jsonify({'error': 'Satellite not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/transponder/<int:id>')
+@login_required
+def api_transponder_detail(id):
+    """API endpoint to get transponder details"""
+    try:
+        transponders = db.list_transponders()
+        tp = next((t for t in transponders if t['id'] == id), None)
+        if tp:
+            return jsonify({
+                'id': tp['id'],
+                'name': tp['name'],
+                'freq': tp['freq'],
+                'band': tp.get('band', ''),
+                'eirp_max': tp['eirp_max'],
+                'b_transp': tp['b_transp'],
+                'back_off': tp.get('back_off', 0),
+                'polarization': tp.get('polarization', ''),
+                'satellite_id': tp.get('satellite_id')
+            })
+        return jsonify({'error': 'Transponder not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/carrier/<int:id>')
+@login_required
+def api_carrier_detail(id):
+    """API endpoint to get carrier details"""
+    try:
+        carriers = db.list_carriers()
+        car = next((c for c in carriers if c['id'] == id), None)
+        if car:
+            return jsonify({
+                'id': car['id'],
+                'name': car['name'],
+                'modcod': car['modcod'],
+                'modulation': car.get('modulation', ''),
+                'fec': car.get('fec', ''),
+                'roll_off': car.get('roll_off', 0),
+                'spectral_efficiency': car.get('spectral_efficiency', 0)
+            })
+        return jsonify({'error': 'Carrier not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/ground_station/<int:id>')
+@login_required
+def api_ground_station_detail(id):
+    """API endpoint to get ground station details"""
+    try:
+        ground_stations = db.list_ground_stations()
+        gs = next((g for g in ground_stations if g['id'] == id), None)
+        if gs:
+            return jsonify({
+                'id': gs['id'],
+                'name': gs['name'],
+                'city': gs.get('city', ''),
+                'country': gs.get('country', ''),
+                'site_lat': gs['site_lat'],
+                'site_long': gs['site_long'],
+                'altitude': gs.get('altitude', 0),
+                'climate_zone': gs.get('climate_zone', '')
+            })
+        return jsonify({'error': 'Ground station not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/reception_complex/<int:id>')
+@login_required
+def api_reception_complex_detail(id):
+    """API endpoint to get complex reception system details"""
+    try:
+        systems = db.list_reception_complex()
+        rec = next((r for r in systems if r['id'] == id), None)
+        if rec:
+            return jsonify({
+                'id': rec['id'],
+                'name': rec['name'],
+                'ant_size': rec['ant_size'],
+                'ant_eff': rec['ant_eff'],
+                'coupling_loss': rec.get('coupling_loss', 0),
+                'polarization_loss': rec.get('polarization_loss', 0),
+                'lnb_gain': rec['lnb_gain'],
+                'lnb_temp': rec['lnb_temp'],
+                'cable_loss': rec.get('cable_loss', 0),
+                'calculated_gt': rec.get('calculated_gt', 0)
+            })
+        return jsonify({'error': 'Reception system not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/reception_simple/<int:id>')
+@login_required
+def api_reception_simple_detail(id):
+    """API endpoint to get simple reception system details"""
+    try:
+        systems = db.list_reception_simple()
+        rec = next((r for r in systems if r['id'] == id), None)
+        if rec:
+            return jsonify({
+                'id': rec['id'],
+                'name': rec['name'],
+                'gt_value': rec['gt_value'],
+                'frequency': rec.get('frequency', 0),
+                'ground_station_id': rec.get('ground_station_id')
+            })
+        return jsonify({'error': 'Reception system not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/share_item', methods=['POST'])
 @login_required
 def api_share_item():

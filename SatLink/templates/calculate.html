@@ -5,6 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Link Calculation - SatLink</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .param-detail-item {
+            background-color: #f8f9fa;
+            border-left: 3px solid #007bff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .param-detail-item .param-title {
+            font-weight: 600;
+            color: #007bff;
+            margin-bottom: 5px;
+            font-size: 0.95em;
+        }
+        .param-detail-item table {
+            margin-bottom: 0;
+            font-size: 0.85em;
+        }
+        .param-detail-item td {
+            padding: 2px 8px 2px 0;
+            border: none;
+        }
+        .param-detail-item .label {
+            font-weight: 500;
+            color: #495057;
+        }
+        .param-details-panel {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .empty-state {
+            color: #6c757d;
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .empty-state i {
+            font-size: 3em;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -26,6 +67,7 @@
         <h1>Link Calculation</h1>
 
         <div class="row">
+            <!-- Left Column: Input Parameters -->
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
@@ -33,8 +75,12 @@
                     </div>
                     <div class="card-body">
                         <form id="calculationForm">
+                            <!-- Satellite -->
                             <div class="mb-3">
-                                <label for="satellite" class="form-label">Satellite</label>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <label for="satellite" class="form-label">Satellite</label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addNewSatellite()">+ Add New</button>
+                                </div>
                                 <select class="form-select" id="satellite" name="satellite_id" required>
                                     <option value="">Select Satellite</option>
                                     {% for sat in satellites %}
@@ -43,15 +89,23 @@
                                 </select>
                             </div>
 
+                            <!-- Transponder -->
                             <div class="mb-3">
-                                <label for="transponder" class="form-label">Transponder</label>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <label for="transponder" class="form-label">Transponder</label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addNewTransponder()">+ Add New</button>
+                                </div>
                                 <select class="form-select" id="transponder" name="transponder_id" required>
                                     <option value="">Select Transponder</option>
                                 </select>
                             </div>
 
+                            <!-- Carrier -->
                             <div class="mb-3">
-                                <label for="carrier" class="form-label">Carrier</label>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <label for="carrier" class="form-label">Carrier</label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addNewCarrier()">+ Add New</button>
+                                </div>
                                 <select class="form-select" id="carrier" name="carrier_id" required>
                                     <option value="">Select Carrier</option>
                                     {% for car in carriers %}
@@ -60,8 +114,12 @@
                                 </select>
                             </div>
 
+                            <!-- Ground Station -->
                             <div class="mb-3">
-                                <label for="ground_station" class="form-label">Ground Station</label>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <label for="ground_station" class="form-label">Ground Station</label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addNewGroundStation()">+ Add New</button>
+                                </div>
                                 <select class="form-select" id="ground_station" name="ground_station_id" required>
                                     <option value="">Select Ground Station</option>
                                     {% for gs in ground_stations %}
@@ -70,6 +128,7 @@
                                 </select>
                             </div>
 
+                            <!-- Reception System Type -->
                             <div class="mb-3">
                                 <label for="reception_type" class="form-label">Reception System Type</label>
                                 <select class="form-select" id="reception_type" name="reception_type" required>
@@ -79,8 +138,12 @@
                                 </select>
                             </div>
 
+                            <!-- Reception System -->
                             <div class="mb-3" id="reception_system" style="display: none;">
-                                <label for="reception_id" class="form-label">Reception System</label>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <label for="reception_id" class="form-label">Reception System</label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addNewReceptionSystem()">+ Add New</button>
+                                </div>
                                 <select class="form-select" id="reception_id" name="reception_id" required>
                                     <option value="">Select System</option>
                                 </select>
@@ -92,7 +155,28 @@
                 </div>
             </div>
 
+            <!-- Right Column: Parameter Details & Results -->
             <div class="col-md-6">
+                <!-- Parameter Details Panel -->
+                <div class="card mb-3" id="paramDetailsCard">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Parameter Details</h5>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#paramDetailsCollapse" aria-expanded="true" aria-controls="paramDetailsCollapse">
+                            <span id="toggleIcon">▼</span> Hide
+                        </button>
+                    </div>
+                    <div class="collapse show" id="paramDetailsCollapse">
+                        <div class="card-body param-details-panel">
+                            <div id="paramDetails">
+                                <div class="empty-state">
+                                    <p>Select parameters to see details here</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calculation Results Panel -->
                 <div class="card">
                     <div class="card-header">
                         <h5>Calculation Results</h5>
@@ -107,12 +191,35 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Load transponders based on satellite selection
+        let currentReceptionType = '';
+        let selectedParams = {
+            satellite: null,
+            transponder: null,
+            carrier: null,
+            groundStation: null,
+            reception: null
+        };
+
+        // Toggle panel visibility
+        document.querySelector('[data-bs-toggle="collapse"]').addEventListener('click', function() {
+            const icon = document.getElementById('toggleIcon');
+            const isExpanded = this.getAttribute('aria-expanded') === 'true';
+            icon.textContent = isExpanded ? '▼' : '▲';
+            this.innerHTML = `<span id="toggleIcon">${isExpanded ? '▲' : '▼'}</span> ${isExpanded ? 'Show' : 'Hide'}`;
+        });
+
+        // Load and display satellite details
         document.getElementById('satellite').addEventListener('change', function() {
             const satId = this.value;
             const transponderSelect = document.getElementById('transponder');
 
+            // Clear previous selection
+            selectedParams.satellite = null;
+            updateParamDetails();
+
+            // Load transponders
             if (satId) {
                 transponderSelect.innerHTML = '<option value="">Loading...</option>';
 
@@ -128,8 +235,99 @@
                         console.error('Error:', error);
                         transponderSelect.innerHTML = '<option value="">Error loading transponders</option>';
                     });
+
+                // Load satellite details
+                fetch(`/api/satellite/${satId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.error) {
+                            selectedParams.satellite = {
+                                title: 'Satellite',
+                                data: data
+                            };
+                            updateParamDetails();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
             } else {
                 transponderSelect.innerHTML = '<option value="">Select Transponder</option>';
+            }
+        });
+
+        // Load and display transponder details
+        document.getElementById('transponder').addEventListener('change', function() {
+            const tpId = this.value;
+
+            selectedParams.transponder = null;
+            updateParamDetails();
+
+            if (tpId) {
+                fetch(`/api/transponder/${tpId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.error) {
+                            selectedParams.transponder = {
+                                title: 'Transponder',
+                                data: data
+                            };
+                            updateParamDetails();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            }
+        });
+
+        // Load and display carrier details
+        document.getElementById('carrier').addEventListener('change', function() {
+            const carId = this.value;
+
+            selectedParams.carrier = null;
+            updateParamDetails();
+
+            if (carId) {
+                fetch(`/api/carrier/${carId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.error) {
+                            selectedParams.carrier = {
+                                title: 'Carrier',
+                                data: data
+                            };
+                            updateParamDetails();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            }
+        });
+
+        // Load and display ground station details
+        document.getElementById('ground_station').addEventListener('change', function() {
+            const gsId = this.value;
+
+            selectedParams.groundStation = null;
+            updateParamDetails();
+
+            if (gsId) {
+                fetch(`/api/ground_station/${gsId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.error) {
+                            selectedParams.groundStation = {
+                                title: 'Ground Station',
+                                data: data
+                            };
+                            updateParamDetails();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
             }
         });
 
@@ -137,6 +335,10 @@
         document.getElementById('reception_type').addEventListener('change', function() {
             const type = this.value;
             const receptionDiv = document.getElementById('reception_system');
+            currentReceptionType = type;
+
+            selectedParams.reception = null;
+            updateParamDetails();
 
             if (type) {
                 receptionDiv.style.display = 'block';
@@ -160,6 +362,158 @@
             }
         });
 
+        // Load and display reception system details
+        document.getElementById('reception_id').addEventListener('change', function() {
+            const recId = this.value;
+
+            selectedParams.reception = null;
+            updateParamDetails();
+
+            if (recId && currentReceptionType) {
+                const apiUrl = currentReceptionType === 'complex'
+                    ? `/api/reception_complex/${recId}`
+                    : `/api/reception_simple/${recId}`;
+
+                fetch(apiUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.error) {
+                            selectedParams.reception = {
+                                title: 'Reception System',
+                                data: data,
+                                type: currentReceptionType
+                            };
+                            updateParamDetails();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            }
+        });
+
+        // Update parameter details panel
+        function updateParamDetails() {
+            const detailsDiv = document.getElementById('paramDetails');
+            let html = '';
+
+            if (selectedParams.satellite) {
+                html += renderParamDetail('satellite', selectedParams.satellite.data);
+            }
+
+            if (selectedParams.transponder) {
+                html += renderParamDetail('transponder', selectedParams.transponder.data);
+            }
+
+            if (selectedParams.carrier) {
+                html += renderParamDetail('carrier', selectedParams.carrier.data);
+            }
+
+            if (selectedParams.groundStation) {
+                html += renderParamDetail('groundStation', selectedParams.groundStation.data);
+            }
+
+            if (selectedParams.reception) {
+                html += renderParamDetail('reception', selectedParams.reception.data, selectedParams.reception.type);
+            }
+
+            if (html === '') {
+                html = '<div class="empty-state"><p>Select parameters to see details here</p></div>';
+            }
+
+            detailsDiv.innerHTML = html;
+        }
+
+        // Render individual parameter detail
+        function renderParamDetail(type, data, subType) {
+            let content = '';
+
+            switch(type) {
+                case 'satellite':
+                    content = `
+                        <table class="table table-sm">
+                            <tr><td class="label">Name:</td><td>${data.name}</td></tr>
+                            <tr><td class="label">Longitude:</td><td>${data.sat_long}°</td></tr>
+                            <tr><td class="label">Latitude:</td><td>${data.sat_lat}°</td></tr>
+                            <tr><td class="label">Altitude:</td><td>${data.altitude} km</td></tr>
+                            <tr><td class="label">Orbit Type:</td><td>${data.orbit_type}</td></tr>
+                        </table>
+                    `;
+                    break;
+
+                case 'transponder':
+                    content = `
+                        <table class="table table-sm">
+                            <tr><td class="label">Name:</td><td>${data.name}</td></tr>
+                            <tr><td class="label">Frequency:</td><td>${data.freq} GHz</td></tr>
+                            <tr><td class="label">Band:</td><td>${data.band || 'N/A'}</td></tr>
+                            <tr><td class="label">EIRP Max:</td><td>${data.eirp_max} dBW</td></tr>
+                            <tr><td class="label">Bandwidth:</td><td>${data.b_transp} MHz</td></tr>
+                            <tr><td class="label">Back-off:</td><td>${data.back_off} dB</td></tr>
+                            <tr><td class="label">Polarization:</td><td>${data.polarization || 'N/A'}</td></tr>
+                        </table>
+                    `;
+                    break;
+
+                case 'carrier':
+                    content = `
+                        <table class="table table-sm">
+                            <tr><td class="label">Name:</td><td>${data.name}</td></tr>
+                            <tr><td class="label">MODCOD:</td><td>${data.modcod}</td></tr>
+                            <tr><td class="label">Modulation:</td><td>${data.modulation || 'N/A'}</td></tr>
+                            <tr><td class="label">FEC:</td><td>${data.fec || 'N/A'}</td></tr>
+                            <tr><td class="label">Roll-off:</td><td>${data.roll_off}</td></tr>
+                            <tr><td class="label">Spectral Efficiency:</td><td>${data.spectral_efficiency} bit/s/Hz</td></tr>
+                        </table>
+                    `;
+                    break;
+
+                case 'groundStation':
+                    content = `
+                        <table class="table table-sm">
+                            <tr><td class="label">Name:</td><td>${data.name}</td></tr>
+                            <tr><td class="label">City:</td><td>${data.city || 'N/A'}</td></tr>
+                            <tr><td class="label">Country:</td><td>${data.country || 'N/A'}</td></tr>
+                            <tr><td class="label">Latitude:</td><td>${data.site_lat}°</td></tr>
+                            <tr><td class="label">Longitude:</td><td>${data.site_long}°</td></tr>
+                            <tr><td class="label">Altitude:</td><td>${data.altitude} m</td></tr>
+                            <tr><td class="label">Climate Zone:</td><td>${data.climate_zone || 'N/A'}</td></tr>
+                        </table>
+                    `;
+                    break;
+
+                case 'reception':
+                    if (subType === 'complex') {
+                        content = `
+                            <table class="table table-sm">
+                                <tr><td class="label">Name:</td><td>${data.name}</td></tr>
+                                <tr><td class="label">Type:</td><td>Complex</td></tr>
+                                <tr><td class="label">Antenna Size:</td><td>${data.ant_size} m</td></tr>
+                                <tr><td class="label">Antenna Efficiency:</td><td>${(data.ant_eff * 100).toFixed(1)}%</td></tr>
+                                <tr><td class="label">LNB Gain:</td><td>${data.lnb_gain} dB</td></tr>
+                                <tr><td class="label">LNB Noise Temp:</td><td>${data.lnb_temp} K</td></tr>
+                                <tr><td class="label">Coupling Loss:</td><td>${data.coupling_loss} dB</td></tr>
+                                <tr><td class="label">Polarization Loss:</td><td>${data.polarization_loss} dB</td></tr>
+                                <tr><td class="label">Cable Loss:</td><td>${data.cable_loss} dB</td></tr>
+                                <tr><td class="label">Calculated G/T:</td><td>${data.calculated_gt?.toFixed(2) || 'N/A'} dB/K</td></tr>
+                            </table>
+                        `;
+                    } else {
+                        content = `
+                            <table class="table table-sm">
+                                <tr><td class="label">Name:</td><td>${data.name}</td></tr>
+                                <tr><td class="label">Type:</td><td>Simple</td></tr>
+                                <tr><td class="label">G/T Value:</td><td>${data.gt_value} dB/K</td></tr>
+                                <tr><td class="label">Reference Frequency:</td><td>${data.frequency} GHz</td></tr>
+                            </table>
+                        `;
+                    }
+                    break;
+            }
+
+            return `<div class="param-detail-item"><div class="param-title">${content.match(/Name:.*?<\/td>/)?.[0]?.replace(/<[^>]*>/g, '').trim() || type}</div>${content}</div>`;
+        }
+
         // Handle form submission
         document.getElementById('calculationForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -177,7 +531,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    displayResults(data.results);
+                    displayResults(data.results, data.calculation_id);
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -188,7 +542,7 @@
             });
         });
 
-        function displayResults(results) {
+        function displayResults(results, calcId) {
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = `
                 <table class="table table-striped">
@@ -211,9 +565,36 @@
                     <tr><td>G/T</td><td>${results.gt_value?.toFixed(2) || 'N/A'} dB/K</td></tr>
                 </table>
                 <div class="mt-3">
-                    <a href="/calculations/${data.calculation_id}" class="btn btn-info">View Details</a>
+                    ${calcId ? `<a href="/calculations/${calcId}" class="btn btn-info">View Details</a>` : ''}
                 </div>
             `;
+        }
+
+        // Add New parameter functions - redirect to management pages
+        function addNewSatellite() {
+            window.open('/manage/satellites', '_blank');
+        }
+
+        function addNewTransponder() {
+            window.open('/manage/transponders', '_blank');
+        }
+
+        function addNewCarrier() {
+            window.open('/manage/carriers', '_blank');
+        }
+
+        function addNewGroundStation() {
+            window.open('/manage/ground_stations', '_blank');
+        }
+
+        function addNewReceptionSystem() {
+            if (currentReceptionType === 'complex') {
+                window.open('/manage/reception_complex', '_blank');
+            } else if (currentReceptionType === 'simple') {
+                window.open('/manage/reception_simple', '_blank');
+            } else {
+                alert('Please select a reception system type first');
+            }
         }
     </script>
 </body>
