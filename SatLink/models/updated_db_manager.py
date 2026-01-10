@@ -1434,6 +1434,9 @@ class SatLinkDatabaseUser:
             if result:
                 stats['account_created'] = result[0]
 
+            # Combined reception systems count
+            stats['reception_systems'] = stats.get('reception_complex', 0) + stats.get('reception_simple', 0)
+
             return stats
 
     def close(self):
