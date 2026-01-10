@@ -49,12 +49,13 @@
                                         <th>Altitude</th>
                                         <th>Country</th>
                                         <th>Climate Zone</th>
+                                        <th>Shared</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for station in ground_stations %}
-                                    <tr>
+                                    <tr data-station-id="{{ station.id }}">
                                         <td>{{ station.name }}</td>
                                         <td>
                                             {% if station.site_name %}
@@ -70,15 +71,29 @@
                                         <td>{{ station.altitude or 0 }} m</td>
                                         <td>{{ station.country or '-' }}</td>
                                         <td>{{ station.climate_zone or '-' }}</td>
+                                        <td class="shared-badge">
+                                            {% if station.is_shared %}
+                                                <span class="badge bg-success">Public</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Private</span>
+                                            {% endif %}
+                                        </td>
                                         <td>
+                                            <button type="button" class="btn btn-sm btn-warning edit-station-btn" data-id="{{ station.id }}">Edit</button>
                                             <form method="POST" action="/manage/ground_stations/{{ station.id }}/delete" style="display: inline;">
                                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
                                             </form>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-{{ 'success' if station.is_shared else 'info' }} share-toggle-btn"
+                                                    data-station-id="{{ station.id }}"
+                                                    data-is-shared="{{ 1 if station.is_shared else 0 }}">
+                                                {{ 'Make Private' if station.is_shared else 'Make Public' }}
+                                            </button>
                                         </td>
                                     </tr>
                                     {% else %}
                                     <tr>
-                                        <td colspan="8" class="text-center">No ground stations found.</td>
+                                        <td colspan="9" class="text-center">No ground stations found.</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -90,6 +105,210 @@
         </div>
     </div>
 
+    <!-- Edit Ground Station Modal -->
+    <div class="modal fade" id="editStationModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-white">
+                    <h5 class="modal-title">Edit Ground Station</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" id="editStationForm">
+                    <input type="hidden" name="station_id" id="editStationId">
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Name *</label>
+                                <input type="text" class="form-control" name="name" id="editStationName" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Site Name</label>
+                                <input type="text" class="form-control" name="site_name" id="editStationSiteName">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Latitude (°) *</label>
+                                <input type="number" step="0.000001" class="form-control" name="site_lat" id="editStationLat" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Longitude (°) *</label>
+                                <input type="number" step="0.000001" class="form-control" name="site_long" id="editStationLong" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Altitude (m)</label>
+                                <input type="number" step="0.1" class="form-control" name="altitude" id="editStationAltitude" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Country</label>
+                                <input type="text" class="form-control" name="country" id="editStationCountry">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Region</label>
+                                <input type="text" class="form-control" name="region" id="editStationRegion">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">City</label>
+                                <input type="text" class="form-control" name="city" id="editStationCity">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Climate Zone</label>
+                                <input type="text" class="form-control" name="climate_zone" id="editStationClimateZone">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">ITU Region</label>
+                                <select class="form-select" name="itu_region" id="editStationItuRegion">
+                                    <option value="">Select...</option>
+                                    <option value="1">Region 1</option>
+                                    <option value="2">Region 2</option>
+                                    <option value="3">Region 3</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Description</label>
+                                <input type="text" class="form-control" name="description" id="editStationDescription">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="is_shared" id="editStationShared">
+                                <label class="form-check-label" for="editStationShared">
+                                    Share publicly
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning">Update Ground Station</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Store ground stations data
+        const groundStations = {
+            {% for station in ground_stations %}
+            {{ station.id }}: {
+                id: {{ station.id }},
+                name: '{{ station.name }}',
+                site_name: '{{ station.site_name or '' }}',
+                site_lat: {{ station.site_lat }},
+                site_long: {{ station.site_long }},
+                altitude: {{ station.altitude or 0 }},
+                country: '{{ station.country or '' }}',
+                region: '{{ station.region or '' }}',
+                city: '{{ station.city or '' }}',
+                climate_zone: '{{ station.climate_zone or '' }}',
+                itu_region: '{{ station.itu_region or '' }}',
+                description: '{{ station.description or '' }}',
+                is_shared: {{ 'true' if station.is_shared else 'false' }}
+            },
+            {% endfor %}
+        };
+
+        // Edit ground station
+        document.querySelectorAll('.edit-station-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const station = groundStations[id];
+
+                document.getElementById('editStationId').value = id;
+                document.getElementById('editStationName').value = station.name;
+                document.getElementById('editStationSiteName').value = station.site_name;
+                document.getElementById('editStationLat').value = station.site_lat;
+                document.getElementById('editStationLong').value = station.site_long;
+                document.getElementById('editStationAltitude').value = station.altitude;
+                document.getElementById('editStationCountry').value = station.country;
+                document.getElementById('editStationRegion').value = station.region;
+                document.getElementById('editStationCity').value = station.city;
+                document.getElementById('editStationClimateZone').value = station.climate_zone;
+                document.getElementById('editStationItuRegion').value = station.itu_region;
+                document.getElementById('editStationDescription').value = station.description;
+                document.getElementById('editStationShared').checked = station.is_shared;
+
+                document.getElementById('editStationForm').action = '/manage/ground_stations/' + id + '/edit';
+
+                const modal = new bootstrap.Modal(document.getElementById('editStationModal'));
+                modal.show();
+            });
+        });
+        // Handle share toggle buttons
+        document.querySelectorAll('.share-toggle-btn').forEach(button => {
+            button.addEventListener('click', async function() {
+                const stationId = this.getAttribute('data-station-id');
+                const isShared = this.getAttribute('data-is-shared') === '1';
+                const row = document.querySelector(`tr[data-station-id="${stationId}"]`);
+
+                // Disable button during request
+                this.disabled = true;
+                const originalText = this.textContent;
+                this.textContent = 'Loading...';
+
+                try {
+                    const response = await fetch(`/manage/ground_stations/${stationId}/share`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Update the badge
+                        const badgeCell = row.querySelector('.shared-badge');
+                        if (data.is_shared) {
+                            badgeCell.innerHTML = '<span class="badge bg-success">Public</span>';
+                        } else {
+                            badgeCell.innerHTML = '<span class="badge bg-secondary">Private</span>';
+                        }
+
+                        // Update the button
+                        this.setAttribute('data-is-shared', data.is_shared ? '1' : '0');
+                        this.className = `btn btn-sm btn-${data.is_shared ? 'success' : 'info'} share-toggle-btn`;
+                        this.textContent = data.is_shared ? 'Make Private' : 'Make Public';
+
+                        // Show success message
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                        alertDiv.style.position = 'fixed';
+                        alertDiv.style.top = '20px';
+                        alertDiv.style.right = '20px';
+                        alertDiv.style.zIndex = '9999';
+                        alertDiv.innerHTML = `
+                            ${data.message || 'Sharing status updated successfully'}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        document.body.appendChild(alertDiv);
+
+                        // Auto-remove after 3 seconds
+                        setTimeout(() => {
+                            alertDiv.remove();
+                        }, 3000);
+                    } else {
+                        // Show error
+                        alert('Error: ' + (data.error || 'Failed to update sharing status'));
+                        this.textContent = originalText;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Network error: ' + error.message);
+                    this.textContent = originalText;
+                } finally {
+                    this.disabled = false;
+                }
+            });
+        });
+    </script>
 </body>
 </html>

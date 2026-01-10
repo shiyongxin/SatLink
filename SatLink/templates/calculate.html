@@ -233,9 +233,9 @@
                 site_lat: {{ gs.site_lat }},
                 site_long: {{ gs.site_long }},
                 altitude: {{ gs.altitude }},
-                city: {{ gs.city | tojson }},
-                country: {{ gs.country | tojson }},
-                climate_zone: {{ gs.climate_zone | tojson }}
+                city: {{ gs.city if gs.city else '' | tojson }},
+                country: {{ gs.country if gs.country else '' | tojson }},
+                climate_zone: {{ gs.climate_zone if gs.climate_zone else '' | tojson }}
             }{% if not loop.last %},{% endif %}
             {% endfor %}
         };
@@ -310,10 +310,13 @@
         // Reception type change handler
         document.getElementById('reception_type').addEventListener('change', async function() {
             const type = this.value;
+            console.log('Reception type changed:', type);
             currentReceptionType = type;
             const receptionDiv = document.getElementById('reception_system');
+            console.log('receptionDiv:', receptionDiv);
 
             if (type) {
+                console.log('Setting display to block');
                 receptionDiv.style.display = 'block';
                 const receptionSelect = document.getElementById('reception_id');
                 receptionSelect.innerHTML = '<option value="">Loading...</option>';
@@ -321,11 +324,13 @@
                 try {
                     const response = await fetch(`/api/reception_systems?type=${type}`);
                     const data = await response.json();
+                    console.log('Loaded systems:', data);
 
                     receptionSelect.innerHTML = '<option value="">Select System</option>';
                     data.forEach(rs => {
                         receptionSelect.innerHTML += `<option value="${rs.id}">${rs.name}</option>`;
                     });
+                    console.log('Options set. Current display:', receptionDiv.style.display);
                 } catch (error) {
                     console.error('Error:', error);
                     receptionSelect.innerHTML = '<option value="">Error loading systems</option>';

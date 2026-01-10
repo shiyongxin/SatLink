@@ -43,31 +43,44 @@
                                 <thead>
                                     <tr>
                                         <th>Name</th>
-                                        <th>Modcod</th>
+                                        <th>MODCOD</th>
                                         <th>Modulation</th>
                                         <th>FEC Rate</th>
-                                        <th>Rolll-off</th>
+                                        <th>Roll-off</th>
                                         <th>B Util (MHz)</th>
-                                        <th>SNR Threshold</th>
                                         <th>Standard</th>
+                                        <th>Shared</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for carrier in carriers %}
-                                    <tr>
+                                    <tr data-carrier-id="{{ carrier.id }}">
                                         <td>{{ carrier.name }}</td>
                                         <td>{{ carrier.modcod }}</td>
                                         <td>{{ carrier.modulation }}</td>
                                         <td>{{ carrier.fec }}</td>
                                         <td>{{ "%.3f"|format(carrier.roll_off) }}</td>
                                         <td>{{ carrier.b_util }}</td>
-                                        <td>{{ carrier.snr_threshold or '-' }}</td>
                                         <td>{{ carrier.standard or '-' }}</td>
+                                        <td class="shared-badge">
+                                            {% if carrier.is_shared %}
+                                                <span class="badge bg-success">Public</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Private</span>
+                                            {% endif %}
+                                        </td>
                                         <td>
+                                            <button type="button" class="btn btn-sm btn-warning edit-carrier-btn" data-id="{{ carrier.id }}">Edit</button>
                                             <form method="POST" action="/manage/carriers/{{ carrier.id }}/delete" style="display: inline;">
                                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
                                             </form>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-{{ 'success' if carrier.is_shared else 'info' }} share-toggle-btn"
+                                                    data-carrier-id="{{ carrier.id }}"
+                                                    data-is-shared="{{ 1 if carrier.is_shared else 0 }}">
+                                                {{ 'Make Private' if carrier.is_shared else 'Make Public' }}
+                                            </button>
                                         </td>
                                     </tr>
                                     {% else %}
@@ -84,6 +97,189 @@
         </div>
     </div>
 
+    <!-- Edit Carrier Modal -->
+    <div class="modal fade" id="editCarrierModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-white">
+                    <h5 class="modal-title">Edit Carrier Configuration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" id="editCarrierForm">
+                    <input type="hidden" name="carrier_id" id="editCarrierId">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" name="name" id="editCarrierName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">MODCOD *</label>
+                            <input type="text" class="form-control" name="modcod" id="editCarrierModcod" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Modulation *</label>
+                            <input type="text" class="form-control" name="modulation" id="editCarrierModulation" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">FEC Rate *</label>
+                            <input type="text" class="form-control" name="fec" id="editCarrierFec" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Roll-off *</label>
+                            <input type="number" step="0.01" class="form-control" name="roll_off" id="editCarrierRollOff" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bandwidth Utilized (MHz) *</label>
+                            <input type="number" step="0.1" class="form-control" name="b_util" id="editCarrierBUtil" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">SNR Threshold (dB)</label>
+                            <input type="number" step="0.1" class="form-control" name="snr_threshold" id="editCarrierSnrThreshold">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Spectral Efficiency</label>
+                            <input type="number" step="0.01" class="form-control" name="spectral_efficiency" id="editCarrierSpectralEff">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Standard</label>
+                            <input type="text" class="form-control" name="standard" id="editCarrierStandard">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <input type="text" class="form-control" name="description" id="editCarrierDescription">
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="is_shared" id="editCarrierShared">
+                                <label class="form-check-label" for="editCarrierShared">
+                                    Share publicly
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning">Update Carrier</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Store carriers data
+        const carriers = {
+            {% for carrier in carriers %}
+            {{ carrier.id }}: {
+                id: {{ carrier.id }},
+                name: '{{ carrier.name }}',
+                modcod: '{{ carrier.modcod }}',
+                modulation: '{{ carrier.modulation }}',
+                fec: '{{ carrier.fec }}',
+                roll_off: {{ carrier.roll_off }},
+                b_util: {{ carrier.b_util }},
+                snr_threshold: {{ carrier.snr_threshold or 'null' }},
+                spectral_efficiency: {{ carrier.spectral_efficiency or 'null' }},
+                standard: '{{ carrier.standard or '' }}',
+                description: '{{ carrier.description or '' }}',
+                is_shared: {{ 'true' if carrier.is_shared else 'false' }}
+            },
+            {% endfor %}
+        };
+
+        // Edit carrier
+        document.querySelectorAll('.edit-carrier-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const carrier = carriers[id];
+
+                document.getElementById('editCarrierId').value = id;
+                document.getElementById('editCarrierName').value = carrier.name;
+                document.getElementById('editCarrierModcod').value = carrier.modcod;
+                document.getElementById('editCarrierModulation').value = carrier.modulation;
+                document.getElementById('editCarrierFec').value = carrier.fec;
+                document.getElementById('editCarrierRollOff').value = carrier.roll_off;
+                document.getElementById('editCarrierBUtil').value = carrier.b_util;
+                document.getElementById('editCarrierSnrThreshold').value = carrier.snr_threshold || '';
+                document.getElementById('editCarrierSpectralEff').value = carrier.spectral_efficiency || '';
+                document.getElementById('editCarrierStandard').value = carrier.standard;
+                document.getElementById('editCarrierDescription').value = carrier.description;
+                document.getElementById('editCarrierShared').checked = carrier.is_shared;
+
+                document.getElementById('editCarrierForm').action = '/manage/carriers/' + id + '/edit';
+
+                const modal = new bootstrap.Modal(document.getElementById('editCarrierModal'));
+                modal.show();
+            });
+        });
+        // Handle share toggle buttons
+        document.querySelectorAll('.share-toggle-btn').forEach(button => {
+            button.addEventListener('click', async function() {
+                const carId = this.getAttribute('data-carrier-id');
+                const isShared = this.getAttribute('data-is-shared') === '1';
+                const row = document.querySelector(`tr[data-carrier-id="${carId}"]`);
+
+                // Disable button during request
+                this.disabled = true;
+                const originalText = this.textContent;
+                this.textContent = 'Loading...';
+
+                try {
+                    const response = await fetch(`/manage/carriers/${carId}/share`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Update the badge
+                        const badgeCell = row.querySelector('.shared-badge');
+                        if (data.is_shared) {
+                            badgeCell.innerHTML = '<span class="badge bg-success">Public</span>';
+                        } else {
+                            badgeCell.innerHTML = '<span class="badge bg-secondary">Private</span>';
+                        }
+
+                        // Update the button
+                        this.setAttribute('data-is-shared', data.is_shared ? '1' : '0');
+                        this.className = `btn btn-sm btn-${data.is_shared ? 'success' : 'info'} share-toggle-btn`;
+                        this.textContent = data.is_shared ? 'Make Private' : 'Make Public';
+
+                        // Show success message
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                        alertDiv.style.position = 'fixed';
+                        alertDiv.style.top = '20px';
+                        alertDiv.style.right = '20px';
+                        alertDiv.style.zIndex = '9999';
+                        alertDiv.innerHTML = `
+                            ${data.message || 'Sharing status updated successfully'}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        document.body.appendChild(alertDiv);
+
+                        // Auto-remove after 3 seconds
+                        setTimeout(() => {
+                            alertDiv.remove();
+                        }, 3000);
+                    } else {
+                        // Show error
+                        alert('Error: ' + (data.error || 'Failed to update sharing status'));
+                        this.textContent = originalText;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Network error: ' + error.message);
+                    this.textContent = originalText;
+                } finally {
+                    this.disabled = false;
+                }
+            });
+        });
+    </script>
 </body>
 </html>

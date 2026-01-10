@@ -53,13 +53,13 @@
                                 </thead>
                                 <tbody>
                                     {% for satellite in satellites %}
-                                    <tr>
+                                    <tr data-satellite-id="{{ satellite.id }}">
                                         <td>{{ satellite.name }}</td>
                                         <td>{{ "%.2f"|format(satellite.sat_long) }}°</td>
                                         <td>{{ "%.2f"|format(satellite.sat_lat) }}°</td>
                                         <td>{{ satellite.h_sat or 35786 }}</td>
                                         <td>{{ satellite.orbit_type or 'GEO' }}</td>
-                                        <td>
+                                        <td class="shared-badge">
                                             {% if satellite.is_shared %}
                                                 <span class="badge bg-success">Public</span>
                                             {% else %}
@@ -71,11 +71,12 @@
                                             <form method="POST" action="/manage/satellites/{{ satellite.id }}/delete" style="display: inline;">
                                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
                                             </form>
-                                            <form method="POST" action="/manage/satellites/{{ satellite.id }}/share" style="display: inline;">
-                                                <button type="submit" class="btn btn-sm btn-{{ 'success' if satellite.is_shared else 'info' }}">
-                                                    {{ 'Make Private' if satellite.is_shared else 'Make Public' }}
-                                                </button>
-                                            </form>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-{{ 'success' if satellite.is_shared else 'info' }} share-toggle-btn"
+                                                    data-satellite-id="{{ satellite.id }}"
+                                                    data-is-shared="{{ 1 if satellite.is_shared else 0 }}">
+                                                {{ 'Make Private' if satellite.is_shared else 'Make Public' }}
+                                            </button>
                                         </td>
                                     </tr>
                                     {% else %}
@@ -93,5 +94,74 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Handle share toggle buttons
+        document.querySelectorAll('.share-toggle-btn').forEach(button => {
+            button.addEventListener('click', async function() {
+                const satId = this.getAttribute('data-satellite-id');
+                const isShared = this.getAttribute('data-is-shared') === '1';
+                const row = document.querySelector(`tr[data-satellite-id="${satId}"]`);
+
+                // Disable button during request
+                this.disabled = true;
+                const originalText = this.textContent;
+                this.textContent = 'Loading...';
+
+                try {
+                    const response = await fetch(`/manage/satellites/${satId}/share`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Update the badge
+                        const badgeCell = row.querySelector('.shared-badge');
+                        if (data.is_shared) {
+                            badgeCell.innerHTML = '<span class="badge bg-success">Public</span>';
+                        } else {
+                            badgeCell.innerHTML = '<span class="badge bg-secondary">Private</span>';
+                        }
+
+                        // Update the button
+                        this.setAttribute('data-is-shared', data.is_shared ? '1' : '0');
+                        this.className = `btn btn-sm btn-${data.is_shared ? 'success' : 'info'} share-toggle-btn`;
+                        this.textContent = data.is_shared ? 'Make Private' : 'Make Public';
+
+                        // Show success message
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                        alertDiv.style.position = 'fixed';
+                        alertDiv.style.top = '20px';
+                        alertDiv.style.right = '20px';
+                        alertDiv.style.zIndex = '9999';
+                        alertDiv.innerHTML = `
+                            ${data.message || 'Sharing status updated successfully'}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        document.body.appendChild(alertDiv);
+
+                        // Auto-remove after 3 seconds
+                        setTimeout(() => {
+                            alertDiv.remove();
+                        }, 3000);
+                    } else {
+                        // Show error
+                        alert('Error: ' + (data.error || 'Failed to update sharing status'));
+                        this.textContent = originalText;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Network error: ' + error.message);
+                    this.textContent = originalText;
+                } finally {
+                    this.disabled = false;
+                }
+            });
+        });
+    </script>
 </body>
 </html>
