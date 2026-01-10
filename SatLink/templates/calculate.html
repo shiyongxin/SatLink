@@ -40,11 +40,6 @@
             text-align: center;
             padding: 40px 20px;
         }
-        .empty-state i {
-            font-size: 3em;
-            margin-bottom: 15px;
-            opacity: 0.3;
-        }
     </style>
 </head>
 <body>
@@ -67,7 +62,6 @@
         <h1>Link Calculation</h1>
 
         <div class="row">
-            <!-- Left Column: Input Parameters -->
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
@@ -128,7 +122,7 @@
                                 </select>
                             </div>
 
-                            <!-- Reception System Type -->
+                            <!-- Reception Type -->
                             <div class="mb-3">
                                 <label for="reception_type" class="form-label">Reception System Type</label>
                                 <select class="form-select" id="reception_type" name="reception_type" required>
@@ -138,7 +132,6 @@
                                 </select>
                             </div>
 
-                            <!-- Reception System -->
                             <div class="mb-3" id="reception_system" style="display: none;">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <label for="reception_id" class="form-label">Reception System</label>
@@ -155,35 +148,32 @@
                 </div>
             </div>
 
-            <!-- Right Column: Parameter Details & Results -->
             <div class="col-md-6">
-                <!-- Parameter Details Panel -->
-                <div class="card mb-3" id="paramDetailsCard">
+                <!-- Calculation Results -->
+                <div class="card mb-3">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Parameter Details</h5>
-                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#paramDetailsCollapse" aria-expanded="true" aria-controls="paramDetailsCollapse">
-                            <span id="toggleIcon">▼</span> Hide
-                        </button>
-                    </div>
-                    <div class="collapse show" id="paramDetailsCollapse">
-                        <div class="card-body param-details-panel">
-                            <div id="paramDetails">
-                                <div class="empty-state">
-                                    <p>Select parameters to see details here</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Calculation Results Panel -->
-                <div class="card">
-                    <div class="card-header">
                         <h5>Calculation Results</h5>
                     </div>
                     <div class="card-body">
                         <div id="results" class="text-center">
                             <p class="text-muted">Complete the form to see results</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parameter Details Panel -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5>Parameter Details</h5>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#paramDetailsBody">
+                            Hide/Show
+                        </button>
+                    </div>
+                    <div class="collapse show" id="paramDetailsBody">
+                        <div class="card-body param-details-panel" id="paramDetails">
+                            <div class="empty-state">
+                                <p>Select parameters to see details</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -193,203 +183,178 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let currentReceptionType = '';
-        let selectedParams = {
-            satellite: null,
-            transponder: null,
-            carrier: null,
-            groundStation: null,
-            reception: null
+        // Store selected component data
+        let selectedComponents = {};
+        let currentReceptionType = null;
+        let allTransponders = {};
+
+        // Store all component data from server
+        {% if satellites %}
+        const allSatellites = {
+            {% for sat in satellites %}
+            {{ sat.id }}: {
+                id: {{ sat.id }},
+                name: {{ sat.name | tojson }},
+                sat_long: {{ sat.sat_long }},
+                sat_lat: {{ sat.sat_lat }},
+                altitude: {{ sat.altitude }},
+                orbit_type: {{ sat.orbit_type | tojson }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
         };
+        {% else %}
+        const allSatellites = {};
+        {% endif %}
 
-        // Toggle panel visibility
-        document.querySelector('[data-bs-toggle="collapse"]').addEventListener('click', function() {
-            const icon = document.getElementById('toggleIcon');
-            const isExpanded = this.getAttribute('aria-expanded') === 'true';
-            icon.textContent = isExpanded ? '▼' : '▲';
-            this.innerHTML = `<span id="toggleIcon">${isExpanded ? '▲' : '▼'}</span> ${isExpanded ? 'Show' : 'Hide'}`;
-        });
+        {% if carriers %}
+        const allCarriers = {
+            {% for car in carriers %}
+            {{ car.id }}: {
+                id: {{ car.id }},
+                name: {{ car.name | tojson }},
+                modcod: {{ car.modcod | tojson }},
+                modulation: {{ car.modulation | tojson }},
+                fec: {{ car.fec | tojson }},
+                roll_off: {{ car.roll_off }},
+                spectral_efficiency: {{ car.spectral_efficiency }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        };
+        {% else %}
+        const allCarriers = {};
+        {% endif %}
 
-        // Load and display satellite details
-        document.getElementById('satellite').addEventListener('change', function() {
+        {% if ground_stations %}
+        const allGroundStations = {
+            {% for gs in ground_stations %}
+            {{ gs.id }}: {
+                id: {{ gs.id }},
+                name: {{ gs.name | tojson }},
+                site_lat: {{ gs.site_lat }},
+                site_long: {{ gs.site_long }},
+                altitude: {{ gs.altitude }},
+                city: {{ gs.city | tojson }},
+                country: {{ gs.country | tojson }},
+                climate_zone: {{ gs.climate_zone | tojson }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        };
+        {% else %}
+        const allGroundStations = {};
+        {% endif %}
+
+        // Satellite change handler
+        document.getElementById('satellite').addEventListener('change', async function() {
             const satId = this.value;
             const transponderSelect = document.getElementById('transponder');
 
-            // Clear previous selection
-            selectedParams.satellite = null;
-            updateParamDetails();
-
-            // Load transponders
             if (satId) {
                 transponderSelect.innerHTML = '<option value="">Loading...</option>';
 
-                fetch(`/api/transponders?satellite_id=${satId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        transponderSelect.innerHTML = '<option value="">Select Transponder</option>';
-                        data.forEach(tp => {
-                            transponderSelect.innerHTML += `<option value="${tp.id}">${tp.name} (${tp.freq} GHz)</option>`;
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        transponderSelect.innerHTML = '<option value="">Error loading transponders</option>';
+                try {
+                    const response = await fetch(`/api/transponders?satellite_id=${satId}`);
+                    const data = await response.json();
+
+                    transponderSelect.innerHTML = '<option value="">Select Transponder</option>';
+                    data.forEach(tp => {
+                        allTransponders[tp.id] = tp;
+                        transponderSelect.innerHTML += `<option value="${tp.id}">${tp.name} (${tp.freq} GHz)</option>`;
                     });
 
-                // Load satellite details
-                fetch(`/api/satellite/${satId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.error) {
-                            selectedParams.satellite = {
-                                title: 'Satellite',
-                                data: data
-                            };
-                            updateParamDetails();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
+                    selectedComponents.satellite = allSatellites[satId];
+                    updateParamDetails();
+                } catch (error) {
+                    console.error('Error:', error);
+                    transponderSelect.innerHTML = '<option value="">Error loading transponders</option>';
+                }
             } else {
                 transponderSelect.innerHTML = '<option value="">Select Transponder</option>';
+                delete selectedComponents.satellite;
+                updateParamDetails();
             }
         });
 
-        // Load and display transponder details
+        // Transponder selection
         document.getElementById('transponder').addEventListener('change', function() {
             const tpId = this.value;
-
-            selectedParams.transponder = null;
-            updateParamDetails();
-
-            if (tpId) {
-                fetch(`/api/transponder/${tpId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.error) {
-                            selectedParams.transponder = {
-                                title: 'Transponder',
-                                data: data
-                            };
-                            updateParamDetails();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
+            if (tpId && allTransponders[tpId]) {
+                selectedComponents.transponder = allTransponders[tpId];
+            } else {
+                delete selectedComponents.transponder;
             }
+            updateParamDetails();
         });
 
-        // Load and display carrier details
+        // Carrier selection
         document.getElementById('carrier').addEventListener('change', function() {
             const carId = this.value;
-
-            selectedParams.carrier = null;
-            updateParamDetails();
-
-            if (carId) {
-                fetch(`/api/carrier/${carId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.error) {
-                            selectedParams.carrier = {
-                                title: 'Carrier',
-                                data: data
-                            };
-                            updateParamDetails();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
+            if (carId && allCarriers[carId]) {
+                selectedComponents.carrier = allCarriers[carId];
+            } else {
+                delete selectedComponents.carrier;
             }
+            updateParamDetails();
         });
 
-        // Load and display ground station details
+        // Ground Station selection
         document.getElementById('ground_station').addEventListener('change', function() {
             const gsId = this.value;
-
-            selectedParams.groundStation = null;
-            updateParamDetails();
-
-            if (gsId) {
-                fetch(`/api/ground_station/${gsId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.error) {
-                            selectedParams.groundStation = {
-                                title: 'Ground Station',
-                                data: data
-                            };
-                            updateParamDetails();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
+            if (gsId && allGroundStations[gsId]) {
+                selectedComponents.ground_station = allGroundStations[gsId];
+            } else {
+                delete selectedComponents.ground_station;
             }
+            updateParamDetails();
         });
 
-        // Load reception systems based on type
-        document.getElementById('reception_type').addEventListener('change', function() {
+        // Reception type change handler
+        document.getElementById('reception_type').addEventListener('change', async function() {
             const type = this.value;
-            const receptionDiv = document.getElementById('reception_system');
             currentReceptionType = type;
-
-            selectedParams.reception = null;
-            updateParamDetails();
+            const receptionDiv = document.getElementById('reception_system');
 
             if (type) {
                 receptionDiv.style.display = 'block';
                 const receptionSelect = document.getElementById('reception_id');
                 receptionSelect.innerHTML = '<option value="">Loading...</option>';
 
-                fetch(`/api/reception_systems?type=${type}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        receptionSelect.innerHTML = '<option value="">Select System</option>';
-                        data.forEach(rs => {
-                            receptionSelect.innerHTML += `<option value="${rs.id}">${rs.name}</option>`;
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        receptionSelect.innerHTML = '<option value="">Error loading systems</option>';
+                try {
+                    const response = await fetch(`/api/reception_systems?type=${type}`);
+                    const data = await response.json();
+
+                    receptionSelect.innerHTML = '<option value="">Select System</option>';
+                    data.forEach(rs => {
+                        receptionSelect.innerHTML += `<option value="${rs.id}">${rs.name}</option>`;
                     });
+                } catch (error) {
+                    console.error('Error:', error);
+                    receptionSelect.innerHTML = '<option value="">Error loading systems</option>';
+                }
             } else {
                 receptionDiv.style.display = 'none';
             }
         });
 
-        // Load and display reception system details
-        document.getElementById('reception_id').addEventListener('change', function() {
+        // Reception system selection
+        document.getElementById('reception_id').addEventListener('change', async function() {
             const recId = this.value;
+            const type = currentReceptionType;
 
-            selectedParams.reception = null;
-            updateParamDetails();
-
-            if (recId && currentReceptionType) {
-                const apiUrl = currentReceptionType === 'complex'
-                    ? `/api/reception_complex/${recId}`
-                    : `/api/reception_simple/${recId}`;
-
-                fetch(apiUrl)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.error) {
-                            selectedParams.reception = {
-                                title: 'Reception System',
-                                data: data,
-                                type: currentReceptionType
-                            };
-                            updateParamDetails();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
+            if (recId && type) {
+                try {
+                    const response = await fetch(`/api/reception_systems?type=${type}`);
+                    const data = await response.json();
+                    const rec = data.find(r => r.id == recId);
+                    if (rec) {
+                        selectedComponents.reception_system = rec;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            } else {
+                delete selectedComponents.reception_system;
             }
+            updateParamDetails();
         });
 
         // Update parameter details panel
@@ -397,121 +362,96 @@
             const detailsDiv = document.getElementById('paramDetails');
             let html = '';
 
-            if (selectedParams.satellite) {
-                html += renderParamDetail('satellite', selectedParams.satellite.data);
+            if (selectedComponents.satellite) {
+                const sat = selectedComponents.satellite;
+                html += createDetailItem('Satellite', `
+                    <table>
+                        <tr><td class="label">Name:</td><td>${sat.name}</td></tr>
+                        <tr><td class="label">Longitude:</td><td>${sat.sat_long}°</td></tr>
+                        <tr><td class="label">Latitude:</td><td>${sat.sat_lat}°</td></tr>
+                        <tr><td class="label">Altitude:</td><td>${sat.altitude} km</td></tr>
+                        <tr><td class="label">Orbit Type:</td><td>${sat.orbit_type}</td></tr>
+                    </table>
+                `);
             }
 
-            if (selectedParams.transponder) {
-                html += renderParamDetail('transponder', selectedParams.transponder.data);
+            if (selectedComponents.transponder) {
+                const tp = selectedComponents.transponder;
+                html += createDetailItem('Transponder', `
+                    <table>
+                        <tr><td class="label">Name:</td><td>${tp.name}</td></tr>
+                        <tr><td class="label">Frequency:</td><td>${tp.freq} GHz</td></tr>
+                        <tr><td class="label">Band:</td><td>${tp.freq_band || 'N/A'}</td></tr>
+                        <tr><td class="label">EIRP Max:</td><td>${tp.eirp_max} dBW</td></tr>
+                        <tr><td class="label">Bandwidth:</td><td>${tp.b_transp} MHz</td></tr>
+                        <tr><td class="label">Polarization:</td><td>${tp.polarization || 'N/A'}</td></tr>
+                    </table>
+                `);
             }
 
-            if (selectedParams.carrier) {
-                html += renderParamDetail('carrier', selectedParams.carrier.data);
+            if (selectedComponents.carrier) {
+                const car = selectedComponents.carrier;
+                html += createDetailItem('Carrier', `
+                    <table>
+                        <tr><td class="label">Name:</td><td>${car.name}</td></tr>
+                        <tr><td class="label">MODCOD:</td><td>${car.modcod}</td></tr>
+                        <tr><td class="label">Modulation:</td><td>${car.modulation || 'N/A'}</td></tr>
+                        <tr><td class="label">FEC:</td><td>${car.fec || 'N/A'}</td></tr>
+                        <tr><td class="label">Roll-off:</td><td>${car.roll_off}</td></tr>
+                        <tr><td class="label">Spectral Efficiency:</td><td>${car.spectral_efficiency} bit/s/Hz</td></tr>
+                    </table>
+                `);
             }
 
-            if (selectedParams.groundStation) {
-                html += renderParamDetail('groundStation', selectedParams.groundStation.data);
+            if (selectedComponents.ground_station) {
+                const gs = selectedComponents.ground_station;
+                html += createDetailItem('Ground Station', `
+                    <table>
+                        <tr><td class="label">Name:</td><td>${gs.name}</td></tr>
+                        <tr><td class="label">Location:</td><td>${gs.city}, ${gs.country}</td></tr>
+                        <tr><td class="label">Latitude:</td><td>${gs.site_lat}°</td></tr>
+                        <tr><td class="label">Longitude:</td><td>${gs.site_long}°</td></tr>
+                        <tr><td class="label">Altitude:</td><td>${gs.altitude} m</td></tr>
+                        <tr><td class="label">Climate Zone:</td><td>${gs.climate_zone || 'N/A'}</td></tr>
+                    </table>
+                `);
             }
 
-            if (selectedParams.reception) {
-                html += renderParamDetail('reception', selectedParams.reception.data, selectedParams.reception.type);
+            if (selectedComponents.reception_system) {
+                const rec = selectedComponents.reception_system;
+                const recType = rec.ant_size !== undefined ? 'Complex' : 'Simple';
+                let recHtml = `
+                    <table>
+                        <tr><td class="label">Name:</td><td>${rec.name}</td></tr>
+                        <tr><td class="label">Type:</td><td>${recType}</td></tr>
+                `;
+
+                if (recType === 'Complex') {
+                    recHtml += `
+                        <tr><td class="label">Antenna Size:</td><td>${rec.ant_size} m</td></tr>
+                        <tr><td class="label">Antenna Efficiency:</td><td>${rec.ant_eff}</td></tr>
+                        <tr><td class="label">LNB Gain:</td><td>${rec.lnb_gain} dB</td></tr>
+                        <tr><td class="label">LNB Noise Temp:</td><td>${rec.lnb_temp} K</td></tr>
+                    `;
+                } else {
+                    recHtml += `
+                        <tr><td class="label">G/T Value:</td><td>${rec.gt_value} dB/K</td></tr>
+                        <tr><td class="label">Reference Frequency:</td><td>${rec.frequency} GHz</td></tr>
+                    `;
+                }
+                recHtml += '</table>';
+                html += createDetailItem('Reception System', recHtml);
             }
 
-            if (html === '') {
-                html = '<div class="empty-state"><p>Select parameters to see details here</p></div>';
+            if (html) {
+                detailsDiv.innerHTML = html;
+            } else {
+                detailsDiv.innerHTML = '<div class="empty-state"><p>Select parameters to see details</p></div>';
             }
-
-            detailsDiv.innerHTML = html;
         }
 
-        // Render individual parameter detail
-        function renderParamDetail(type, data, subType) {
-            let content = '';
-
-            switch(type) {
-                case 'satellite':
-                    content = `
-                        <table class="table table-sm">
-                            <tr><td class="label">Name:</td><td>${data.name}</td></tr>
-                            <tr><td class="label">Longitude:</td><td>${data.sat_long}°</td></tr>
-                            <tr><td class="label">Latitude:</td><td>${data.sat_lat}°</td></tr>
-                            <tr><td class="label">Altitude:</td><td>${data.altitude} km</td></tr>
-                            <tr><td class="label">Orbit Type:</td><td>${data.orbit_type}</td></tr>
-                        </table>
-                    `;
-                    break;
-
-                case 'transponder':
-                    content = `
-                        <table class="table table-sm">
-                            <tr><td class="label">Name:</td><td>${data.name}</td></tr>
-                            <tr><td class="label">Frequency:</td><td>${data.freq} GHz</td></tr>
-                            <tr><td class="label">Band:</td><td>${data.band || 'N/A'}</td></tr>
-                            <tr><td class="label">EIRP Max:</td><td>${data.eirp_max} dBW</td></tr>
-                            <tr><td class="label">Bandwidth:</td><td>${data.b_transp} MHz</td></tr>
-                            <tr><td class="label">Back-off:</td><td>${data.back_off} dB</td></tr>
-                            <tr><td class="label">Polarization:</td><td>${data.polarization || 'N/A'}</td></tr>
-                        </table>
-                    `;
-                    break;
-
-                case 'carrier':
-                    content = `
-                        <table class="table table-sm">
-                            <tr><td class="label">Name:</td><td>${data.name}</td></tr>
-                            <tr><td class="label">MODCOD:</td><td>${data.modcod}</td></tr>
-                            <tr><td class="label">Modulation:</td><td>${data.modulation || 'N/A'}</td></tr>
-                            <tr><td class="label">FEC:</td><td>${data.fec || 'N/A'}</td></tr>
-                            <tr><td class="label">Roll-off:</td><td>${data.roll_off}</td></tr>
-                            <tr><td class="label">Spectral Efficiency:</td><td>${data.spectral_efficiency} bit/s/Hz</td></tr>
-                        </table>
-                    `;
-                    break;
-
-                case 'groundStation':
-                    content = `
-                        <table class="table table-sm">
-                            <tr><td class="label">Name:</td><td>${data.name}</td></tr>
-                            <tr><td class="label">City:</td><td>${data.city || 'N/A'}</td></tr>
-                            <tr><td class="label">Country:</td><td>${data.country || 'N/A'}</td></tr>
-                            <tr><td class="label">Latitude:</td><td>${data.site_lat}°</td></tr>
-                            <tr><td class="label">Longitude:</td><td>${data.site_long}°</td></tr>
-                            <tr><td class="label">Altitude:</td><td>${data.altitude} m</td></tr>
-                            <tr><td class="label">Climate Zone:</td><td>${data.climate_zone || 'N/A'}</td></tr>
-                        </table>
-                    `;
-                    break;
-
-                case 'reception':
-                    if (subType === 'complex') {
-                        content = `
-                            <table class="table table-sm">
-                                <tr><td class="label">Name:</td><td>${data.name}</td></tr>
-                                <tr><td class="label">Type:</td><td>Complex</td></tr>
-                                <tr><td class="label">Antenna Size:</td><td>${data.ant_size} m</td></tr>
-                                <tr><td class="label">Antenna Efficiency:</td><td>${(data.ant_eff * 100).toFixed(1)}%</td></tr>
-                                <tr><td class="label">LNB Gain:</td><td>${data.lnb_gain} dB</td></tr>
-                                <tr><td class="label">LNB Noise Temp:</td><td>${data.lnb_temp} K</td></tr>
-                                <tr><td class="label">Coupling Loss:</td><td>${data.coupling_loss} dB</td></tr>
-                                <tr><td class="label">Polarization Loss:</td><td>${data.polarization_loss} dB</td></tr>
-                                <tr><td class="label">Cable Loss:</td><td>${data.cable_loss} dB</td></tr>
-                                <tr><td class="label">Calculated G/T:</td><td>${data.calculated_gt?.toFixed(2) || 'N/A'} dB/K</td></tr>
-                            </table>
-                        `;
-                    } else {
-                        content = `
-                            <table class="table table-sm">
-                                <tr><td class="label">Name:</td><td>${data.name}</td></tr>
-                                <tr><td class="label">Type:</td><td>Simple</td></tr>
-                                <tr><td class="label">G/T Value:</td><td>${data.gt_value} dB/K</td></tr>
-                                <tr><td class="label">Reference Frequency:</td><td>${data.frequency} GHz</td></tr>
-                            </table>
-                        `;
-                    }
-                    break;
-            }
-
-            return `<div class="param-detail-item"><div class="param-title">${content.match(/Name:.*?<\/td>/)?.[0]?.replace(/<[^>]*>/g, '').trim() || type}</div>${content}</div>`;
+        function createDetailItem(title, content) {
+            return `<div class="param-detail-item"><div class="param-title">${title}</div>${content}</div>`;
         }
 
         // Handle form submission
@@ -569,190 +509,6 @@
                 </div>
             `;
         }
-
-        // Add New parameter functions - show modals
-        function addNewSatellite() {
-            const modal = new bootstrap.Modal(document.getElementById('addSatelliteModal'));
-            modal.show();
-        }
-
-        function addNewTransponder() {
-            // Populate satellite dropdown
-            const satSelect = document.getElementById('transponderSatelliteSelect');
-            const mainSatSelect = document.getElementById('satellite');
-            satSelect.innerHTML = mainSatSelect.innerHTML;
-
-            const modal = new bootstrap.Modal(document.getElementById('addTransponderModal'));
-            modal.show();
-        }
-
-        function addNewCarrier() {
-            const modal = new bootstrap.Modal(document.getElementById('addCarrierModal'));
-            modal.show();
-        }
-
-        function addNewGroundStation() {
-            const modal = new bootstrap.Modal(document.getElementById('addGroundStationModal'));
-            modal.show();
-        }
-
-        function addNewReceptionSystem() {
-            if (currentReceptionType === 'complex') {
-                // Populate ground station dropdown
-                const gsSelect = document.getElementById('receptionComplexGroundStation');
-                const mainGsSelect = document.getElementById('ground_station');
-                gsSelect.innerHTML = mainGsSelect.innerHTML;
-
-                const modal = new bootstrap.Modal(document.getElementById('addReceptionComplexModal'));
-                modal.show();
-            } else if (currentReceptionType === 'simple') {
-                // Populate ground station dropdown
-                const gsSelect = document.getElementById('receptionSimpleGroundStation');
-                const mainGsSelect = document.getElementById('ground_station');
-                gsSelect.innerHTML = mainGsSelect.innerHTML;
-
-                const modal = new bootstrap.Modal(document.getElementById('addReceptionSimpleModal'));
-                modal.show();
-            } else {
-                alert('Please select a reception system type first');
-            }
-        }
-
-        // Handle form submissions for adding new components
-        function setupAddForm(formId, apiUrl, successCallback) {
-            const form = document.getElementById(formId);
-            if (!form) return;
-
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-
-                const formData = new FormData(this);
-                const data = Object.fromEntries(formData);
-
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(data)
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // Close the modal
-                        const modalEl = this.closest('.modal');
-                        const modal = bootstrap.Modal.getInstance(modalEl);
-                        modal.hide();
-
-                        // Reset form
-                        form.reset();
-
-                        // Show success message
-                        alert('Added successfully!');
-
-                        // Execute success callback to update UI
-                        if (successCallback) successCallback(result);
-                    } else {
-                        alert('Error: ' + (result.error || 'Failed to add'));
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('Network error: ' + error.message);
-                }
-            });
-        }
-
-        // Setup all add forms
-        document.addEventListener('DOMContentLoaded', function() {
-            // Satellite form
-            setupAddForm('addSatelliteForm', '/api/satellites/add', function(result) {
-                // Add new option to satellite select
-                const satSelect = document.getElementById('satellite');
-                const newOption = document.createElement('option');
-                newOption.value = result.satellite_id;
-                newOption.textContent = document.getElementById('addSatelliteForm').querySelector('[name="name"]').value;
-                satSelect.appendChild(newOption);
-                satSelect.value = result.satellite_id;
-                satSelect.dispatchEvent(new Event('change'));
-            });
-
-            // Transponder form
-            setupAddForm('addTransponderForm', '/api/transponders/add', function(result) {
-                // Refresh transponder list
-                const satId = document.getElementById('satellite').value;
-                if (satId) {
-                    const tpSelect = document.getElementById('transponder');
-                    tpSelect.innerHTML = '<option value="">Select Transponder</option>';
-                    fetch(`/api/transponders?satellite_id=${satId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            data.forEach(tp => {
-                                const option = document.createElement('option');
-                                option.value = tp.id;
-                                option.textContent = `${tp.name} (${tp.freq} GHz)`;
-                                if (tp.id === result.transponder_id) option.selected = true;
-                                tpSelect.appendChild(option);
-                            });
-                            tpSelect.dispatchEvent(new Event('change'));
-                        });
-                }
-            });
-
-            // Carrier form
-            setupAddForm('addCarrierForm', '/api/carriers/add', function(result) {
-                // Add new option to carrier select
-                const carSelect = document.getElementById('carrier');
-                const formName = document.getElementById('addCarrierForm').querySelector('[name="name"]').value;
-                const formModcod = document.getElementById('addCarrierForm').querySelector('[name="modcod"]').value;
-                const newOption = document.createElement('option');
-                newOption.value = result.carrier_id;
-                newOption.textContent = `${formName} (${formModcod})`;
-                carSelect.appendChild(newOption);
-                carSelect.value = result.carrier_id;
-                carSelect.dispatchEvent(new Event('change'));
-            });
-
-            // Ground Station form
-            setupAddForm('addGroundStationForm', '/api/ground_stations/add', function(result) {
-                // Add new option to ground station select
-                const gsSelect = document.getElementById('ground_station');
-                const formName = document.getElementById('addGroundStationForm').querySelector('[name="name"]').value;
-                const newOption = document.createElement('option');
-                newOption.value = result.ground_station_id;
-                newOption.textContent = formName;
-                gsSelect.appendChild(newOption);
-                gsSelect.value = result.ground_station_id;
-                gsSelect.dispatchEvent(new Event('change'));
-            });
-
-            // Reception Complex form
-            setupAddForm('addReceptionComplexForm', '/api/reception_complex/add', function(result) {
-                // Refresh reception system list
-                const recSelect = document.getElementById('reception_id');
-                const formName = document.getElementById('addReceptionComplexForm').querySelector('[name="name"]').value;
-                const newOption = document.createElement('option');
-                newOption.value = result.reception_id;
-                newOption.textContent = formName;
-                recSelect.appendChild(newOption);
-                recSelect.value = result.reception_id;
-                recSelect.dispatchEvent(new Event('change'));
-            });
-
-            // Reception Simple form
-            setupAddForm('addReceptionSimpleForm', '/api/reception_simple/add', function(result) {
-                // Refresh reception system list
-                const recSelect = document.getElementById('reception_id');
-                const formName = document.getElementById('addReceptionSimpleForm').querySelector('[name="name"]').value;
-                const newOption = document.createElement('option');
-                newOption.value = result.reception_id;
-                newOption.textContent = formName;
-                recSelect.appendChild(newOption);
-                recSelect.value = result.reception_id;
-                recSelect.dispatchEvent(new Event('change'));
-            });
-        });
     </script>
 
     <!-- Add Satellite Modal -->
@@ -1051,5 +807,182 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Ensure currentReceptionType is accessible
+        if (typeof currentReceptionType === 'undefined') {
+            var currentReceptionType = null;
+        }
+
+        // Add New parameter functions - show modals
+        function addNewSatellite() {
+            const modal = new bootstrap.Modal(document.getElementById('addSatelliteModal'));
+            modal.show();
+        }
+
+        function addNewTransponder() {
+            const modal = new bootstrap.Modal(document.getElementById('addTransponderModal'));
+            modal.show();
+            // Populate satellite dropdown
+            const satSelect = document.getElementById('transponderSatelliteSelect');
+            satSelect.innerHTML = '';
+            Object.values(allSatellites).forEach(sat => {
+                satSelect.innerHTML += `<option value="${sat.id}">${sat.name}</option>`;
+            });
+        }
+
+        function addNewCarrier() {
+            const modal = new bootstrap.Modal(document.getElementById('addCarrierModal'));
+            modal.show();
+        }
+
+        function addNewGroundStation() {
+            const modal = new bootstrap.Modal(document.getElementById('addGroundStationModal'));
+            modal.show();
+        }
+
+        function addNewReceptionSystem() {
+            if (currentReceptionType === 'complex') {
+                const modal = new bootstrap.Modal(document.getElementById('addReceptionComplexModal'));
+                modal.show();
+                // Populate ground station dropdown
+                const gsSelect = document.getElementById('receptionComplexGroundStation');
+                gsSelect.innerHTML = '';
+                Object.values(allGroundStations).forEach(gs => {
+                    gsSelect.innerHTML += `<option value="${gs.id}">${gs.name}</option>`;
+                });
+            } else if (currentReceptionType === 'simple') {
+                const modal = new bootstrap.Modal(document.getElementById('addReceptionSimpleModal'));
+                modal.show();
+                // Populate ground station dropdown
+                const gsSelect = document.getElementById('receptionSimpleGroundStation');
+                gsSelect.innerHTML = '';
+                Object.values(allGroundStations).forEach(gs => {
+                    gsSelect.innerHTML += `<option value="${gs.id}">${gs.name}</option>`;
+                });
+            } else {
+                alert('Please select a reception system type first');
+            }
+        }
+
+        // Handle form submissions for adding new components
+        function setupAddForm(formId, apiUrl, successCallback) {
+            const form = document.getElementById(formId);
+            if (!form) return;
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const formData = new FormData(this);
+                const data = Object.fromEntries(formData);
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        const modalEl = this.closest('.modal');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        modal.hide();
+                        form.reset();
+                        alert('Added successfully!');
+                        if (successCallback) successCallback(result);
+                    } else {
+                        alert('Error: ' + (result.error || 'Failed to add'));
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Network error: ' + error.message);
+                }
+            });
+        }
+
+        // Setup all add forms
+        document.addEventListener('DOMContentLoaded', function() {
+            setupAddForm('addSatelliteForm', '/api/satellites/add', function(result) {
+                const satSelect = document.getElementById('satellite');
+                const formName = document.getElementById('addSatelliteForm').querySelector('[name="name"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.satellite_id;
+                newOption.textContent = formName;
+                satSelect.appendChild(newOption);
+                satSelect.value = result.satellite_id;
+                satSelect.dispatchEvent(new Event('change'));
+            });
+
+            setupAddForm('addTransponderForm', '/api/transponders/add', function(result) {
+                const satId = document.getElementById('satellite').value;
+                if (satId) {
+                    const tpSelect = document.getElementById('transponder');
+                    tpSelect.innerHTML = '<option value="">Select Transponder</option>';
+                    fetch(`/api/transponders?satellite_id=${satId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            data.forEach(tp => {
+                                allTransponders[tp.id] = tp;
+                                const option = document.createElement('option');
+                                option.value = tp.id;
+                                option.textContent = `${tp.name} (${tp.freq} GHz)`;
+                                if (tp.id === result.transponder_id) option.selected = true;
+                                tpSelect.appendChild(option);
+                            });
+                            tpSelect.dispatchEvent(new Event('change'));
+                        });
+                }
+            });
+
+            setupAddForm('addCarrierForm', '/api/carriers/add', function(result) {
+                const carSelect = document.getElementById('carrier');
+                const formName = document.getElementById('addCarrierForm').querySelector('[name="name"]').value;
+                const formModcod = document.getElementById('addCarrierForm').querySelector('[name="modcod"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.carrier_id;
+                newOption.textContent = `${formName} (${formModcod})`;
+                carSelect.appendChild(newOption);
+                carSelect.value = result.carrier_id;
+                carSelect.dispatchEvent(new Event('change'));
+            });
+
+            setupAddForm('addGroundStationForm', '/api/ground_stations/add', function(result) {
+                const gsSelect = document.getElementById('ground_station');
+                const formName = document.getElementById('addGroundStationForm').querySelector('[name="name"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.ground_station_id;
+                newOption.textContent = formName;
+                gsSelect.appendChild(newOption);
+                gsSelect.value = result.ground_station_id;
+                gsSelect.dispatchEvent(new Event('change'));
+            });
+
+            setupAddForm('addReceptionComplexForm', '/api/reception_complex/add', function(result) {
+                const recSelect = document.getElementById('reception_id');
+                const formName = document.getElementById('addReceptionComplexForm').querySelector('[name="name"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.reception_id;
+                newOption.textContent = formName;
+                recSelect.appendChild(newOption);
+                recSelect.value = result.reception_id;
+                recSelect.dispatchEvent(new Event('change'));
+            });
+
+            setupAddForm('addReceptionSimpleForm', '/api/reception_simple/add', function(result) {
+                const recSelect = document.getElementById('reception_id');
+                const formName = document.getElementById('addReceptionSimpleForm').querySelector('[name="name"]').value;
+                const newOption = document.createElement('option');
+                newOption.value = result.reception_id;
+                newOption.textContent = formName;
+                recSelect.appendChild(newOption);
+                recSelect.value = result.reception_id;
+                recSelect.dispatchEvent(new Event('change'));
+            });
+        });
+    </script>
 </body>
 </html>

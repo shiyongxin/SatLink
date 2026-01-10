@@ -922,7 +922,7 @@ def api_add_satellite():
             name=data['name'],
             sat_long=float(data['sat_long']),
             sat_lat=float(data.get('sat_lat', 0)),
-            altitude=float(data.get('altitude', 35786)),
+            h_sat=float(data.get('altitude', 35786)),  # altitude from form -> h_sat parameter
             orbit_type=data.get('orbit_type', 'GEO'),
             is_shared=data.get('is_shared', False)
         )
@@ -957,10 +957,11 @@ def api_add_transponder():
         tp_id = db.add_transponder(
             name=data['name'],
             freq=float(data['freq']),
-            band=data.get('freq_band', ''),
+            freq_band=data.get('freq_band', ''),
             eirp_max=float(data['eirp_max']),
             b_transp=float(data['b_transp']),
             back_off=float(data.get('back_off', 0)),
+            contorno=float(data.get('contorno', 0)),
             polarization=data.get('polarization', ''),
             satellite_id=int(data['satellite_id']),
             is_shared=data.get('is_shared', False)
